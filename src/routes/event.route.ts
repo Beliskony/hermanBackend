@@ -7,7 +7,7 @@ const eventRouter = Router();
 const controller = new EventController();
 
 // ---------------- CREATE ----------------
-eventRouter.post("/newEvent", isAdmin, authMiddleware, controller.create);
+eventRouter.post("/newEvent", authMiddleware, controller.create);
 
 // ---------------- GET ALL ----------------
 eventRouter.get("/AllEvents", isAdmin, authMiddleware, controller.getAll);
