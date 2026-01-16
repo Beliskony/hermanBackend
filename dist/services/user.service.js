@@ -27,10 +27,13 @@ exports.UserService = void 0;
 const IUser_1 = require("../interfaces/IUser");
 const bcryptjs_1 = require("bcryptjs");
 const nodemailer_1 = __importDefault(require("nodemailer"));
+const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 class UserService {
     constructor() {
         // Exemple simple de stockage OTP en mémoire
         this.otpStore = {};
+        this.JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+        this.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
         // Configurer Nodemailer (ici avec SMTP Gmail par exemple)
         this.transporter = nodemailer_1.default.createTransport({
             host: process.env.SMTP_HOST || "smtp.gmail.com",
@@ -76,8 +79,19 @@ class UserService {
             if (!isPasswordValid) {
                 throw new Error("Invalid password");
             }
+            const signOptions = {
+                expiresIn: this.JWT_EXPIRES_IN,
+            };
+            // Générer un token JWT
+            const token = jsonwebtoken_1.default.sign({
+                id: user._id.toString(),
+                email: user.email,
+                username: user.username,
+                phoneNumber: user.phoneNumber,
+                role: user.role
+            }, this.JWT_SECRET, signOptions);
             const _a = user.toObject(), { password: _ } = _a, safeUser = __rest(_a, ["password"]);
-            return safeUser;
+            return { user: safeUser, token };
         });
     }
     sendPasswordResetOtp(email) {

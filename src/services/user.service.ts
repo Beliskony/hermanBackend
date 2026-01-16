@@ -1,8 +1,11 @@
 import { IUser, User } from "../interfaces/IUser";
 import { hash, compare } from "bcryptjs";
-import nodemailer from "nodemailer"
+import nodemailer from "nodemailer";
+import jwt, {SignOptions} from "jsonwebtoken";
 
 export class UserService {
+    private JWT_SECRET: string;
+    private JWT_EXPIRES_IN: string;
     // Exemple simple de stockage OTP en mémoire
     private otpStore: Record<string, { code: string, expiresAt: number }> = {};
 
@@ -10,6 +13,10 @@ export class UserService {
     private transporter;
 
     constructor() {
+
+       this.JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+       this.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+
         // Configurer Nodemailer (ici avec SMTP Gmail par exemple)
         this.transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || "smtp.gmail.com",
@@ -64,8 +71,26 @@ export class UserService {
             throw new Error("Invalid password");
         }
 
+        const signOptions: SignOptions = {
+          expiresIn: this.JWT_EXPIRES_IN as SignOptions["expiresIn"],
+        };
+
+
+        // Générer un token JWT
+        const token = jwt.sign(
+            {
+                id: user._id.toString(),
+                email: user.email,
+                username: user.username,
+                phoneNumber: user.phoneNumber,
+                role: user.role
+            },
+            this.JWT_SECRET as jwt.Secret,
+            signOptions
+        );
+
         const { password: _, ...safeUser } = user.toObject();
-        return safeUser;
+        return {user: safeUser, token}
     }
 
     async sendPasswordResetOtp(email: string): Promise<void> {

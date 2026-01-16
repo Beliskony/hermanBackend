@@ -1,108 +1,107 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import { UserService } from "../services/user.service";
-import jwt from 'jsonwebtoken'
 
-const userService = new UserService();
+export class UserController {
+  private userService: UserService;
 
-/**
- * POST /users/register
- */
-export const register = async (req: Request, res: Response) => {
-  try {
-    const user = await userService.register(req.body);
-    res.status(201).json({
-      message: "User registered successfully",
-      user,
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      message: error.message,
-    });
+  constructor() {
+    this.userService = new UserService();
   }
-};
 
-/**
- * POST /users/login
- */
-export const login = async (req: Request, res: Response) => {
-  try {
-    const { email, password } = req.body;
+  // ---------------- REGISTER ----------------
+  register = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const user = await this.userService.register(req.body);
 
-    if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
-    }
-
-    const user = await userService.login(email, password);
-
-    const token = jwt.sign(
-      {
-        userId: user._id,
-        role: user.role,
-        email: user.email,
-      },
-      process.env.JWT_SECRET as string,
-      {
-        expiresIn: "1d",
-      }
-    );
-
-    res.json({
-      message: "Login successful",
-      token,
-      user,
-    });
-  } catch (error: any) {
-    res.status(401).json({
-      message: error.message,
-    });
-  }
-};
-
-
-/**
- * POST /users/password-reset/request
- */
-export const requestPasswordReset = async (req: Request, res: Response) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ message: "Email is required" });
-    }
-
-    await userService.sendPasswordResetOtp(email);
-
-    res.json({
-      message: "OTP sent to email",
-    });
-  } catch (error: any) {
-    res.status(404).json({
-      message: error.message,
-    });
-  }
-};
-
-/**
- * POST /users/password-reset/confirm
- */
-export const resetPassword = async (req: Request, res: Response) => {
-  try {
-    const { email, otp, newPassword } = req.body;
-
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({
-        message: "Email, OTP and new password are required",
+      res.status(201).json({
+        success: true,
+        message: "User registered successfully",
+        data: user,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message || "Registration failed",
       });
     }
+  };
 
-    await userService.resetPasswordWithOtp(email, otp, newPassword);
+  // ---------------- LOGIN ----------------
+  login = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { email, password } = req.body;
 
-    res.json({
-      message: "Password reset successfully",
-    });
-  } catch (error: any) {
-    res.status(400).json({
-      message: error.message,
-    });
-  }
-};
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          message: "Email and password are required",
+        });
+      }
+
+      const result = await this.userService.login(email, password);
+
+      res.status(200).json({
+        success: true,
+        message: "Login successful",
+        data: result,
+      });
+    } catch (error: any) {
+      res.status(401).json({
+        success: false,
+        message: error.message || "Invalid credentials",
+      });
+    }
+  };
+
+  // ---------------- SEND RESET OTP ----------------
+  sendPasswordResetOtp = async (req: Request, res: Response) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: "Email is required",
+        });
+      }
+
+      await this.userService.sendPasswordResetOtp(email);
+
+      res.status(200).json({
+        success: true,
+        message: "OTP sent to email",
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message || "Failed to send OTP",
+      });
+    }
+  };
+
+  // ---------------- RESET PASSWORD ----------------
+  resetPasswordWithOtp = async (req: Request, res: Response) => {
+    try {
+      const { email, otp, newPassword } = req.body;
+
+      if (!email || !otp || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: "Email, OTP and new password are required",
+        });
+      }
+
+      await this.userService.resetPasswordWithOtp(email, otp, newPassword);
+
+      res.status(200).json({
+        success: true,
+        message: "Password reset successful",
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        success: false,
+        message: error.message || "Password reset failed",
+      });
+    }
+  };
+}

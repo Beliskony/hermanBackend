@@ -1,5 +1,7 @@
 import { IUser } from "../interfaces/IUser";
 export declare class UserService {
+    private JWT_SECRET;
+    private JWT_EXPIRES_IN;
     private otpStore;
     private transporter;
     constructor();
@@ -11,14 +13,17 @@ export declare class UserService {
         id: string;
     }>;
     login(email: string, password: string): Promise<{
-        username: string;
-        email: string;
-        phoneNumber: string;
-        role: "admin" | "normal";
-        createdAt?: Date;
-        updatedAt?: Date;
-        _id: import("mongoose").Types.ObjectId;
-        __v: number;
+        user: {
+            username: string;
+            email: string;
+            phoneNumber: string;
+            role: "admin" | "user";
+            createdAt?: Date;
+            updatedAt?: Date;
+            _id: import("mongoose").Types.ObjectId;
+            __v: number;
+        };
+        token: string;
     }>;
     sendPasswordResetOtp(email: string): Promise<void>;
     resetPasswordWithOtp(email: string, otp: string, newPassword: string): Promise<void>;

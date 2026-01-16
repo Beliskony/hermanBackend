@@ -3,7 +3,7 @@ interface IUser {
     email: string;
     phoneNumber: string;
     password: string;
-    role: 'admin' | 'normal';
+    role: 'admin' | 'user';
     createdAt?: Date;
     updatedAt?: Date;
 }

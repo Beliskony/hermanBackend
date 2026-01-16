@@ -5,7 +5,7 @@ interface IUser {
     email: string;
     phoneNumber: string;
     password: string;
-    role: 'admin' | 'normal'
+    role: 'admin' | 'user'
     createdAt?: Date;
     updatedAt?: Date;
 }
@@ -37,7 +37,7 @@ const userSchema = new Schema<IUser>(
         role: {
             type: String,
             enum: ["admin", "user"],
-            default: "normal"
+            default: "user"
         }
     },
     { timestamps: true }
