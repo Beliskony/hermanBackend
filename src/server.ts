@@ -5,6 +5,7 @@ import cors from "cors"
 import connectDB from "./config/databaseConnect";
 import userRouter from "./routes/user.route";
 import pollRouter from "./routes/poll.route";
+import eventRouter from "./routes/event.route";
 
 dotenv.config();
 
@@ -24,6 +25,7 @@ app.use(express.json());
 // routes
 app.use(userRouter);
 app.use(pollRouter);
+app.use(eventRouter);
 
 
 

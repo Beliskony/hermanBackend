@@ -1,5 +1,7 @@
+import { Types } from "mongoose";
+import { IEvent } from "./IEvent";
 interface IPoll {
-    eventName: string;
+    eventName: Types.ObjectId | IEvent;
     name: string;
     phone: string;
     rating: number;
@@ -7,7 +9,7 @@ interface IPoll {
     submittedAt?: Date;
 }
 export declare const Poll: import("mongoose").Model<IPoll, {}, {}, {}, import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
-    _id: import("mongoose").Types.ObjectId;
+    _id: Types.ObjectId;
 } & {
     __v: number;
 } & {

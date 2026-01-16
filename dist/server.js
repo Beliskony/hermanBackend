@@ -19,6 +19,7 @@ const cors_1 = __importDefault(require("cors"));
 const databaseConnect_1 = __importDefault(require("./config/databaseConnect"));
 const user_route_1 = __importDefault(require("./routes/user.route"));
 const poll_route_1 = __importDefault(require("./routes/poll.route"));
+const event_route_1 = __importDefault(require("./routes/event.route"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
@@ -30,6 +31,7 @@ app.use(express_1.default.json());
 // routes
 app.use(user_route_1.default);
 app.use(poll_route_1.default);
+app.use(event_route_1.default);
 // fonction de demarrage
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     try {

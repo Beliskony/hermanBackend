@@ -1,8 +1,9 @@
-import { Schema, model } from "mongoose";
+import { Schema, model, Types } from "mongoose";
+import { IEvent } from "./IEvent";
 
 // interfaces/poll.interface.ts
 interface IPoll {
-  eventName: string     // Nom de l'événement
+  eventName: Types.ObjectId | IEvent;     // Nom de l'événement
   name: string          // Nom complet de l'utilisateur
   phone: string         // Numéro de téléphone
   rating: number        // Note sur 10
@@ -12,7 +13,7 @@ interface IPoll {
 
 
 const PollSchema = new Schema<IPoll>({
-  eventName: { type: String, required: true },   // Nom de l'événement
+  eventName:{ type: Schema.Types.ObjectId, ref: "Event", required: true,},   // Nom de l'événement
   name: { type: String, required: true },
   phone: { type: String, required: true },
   rating: { type: Number, required: true, min: 1, max: 10 },

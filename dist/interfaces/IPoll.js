@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Poll = void 0;
 const mongoose_1 = require("mongoose");
 const PollSchema = new mongoose_1.Schema({
-    eventName: { type: String, required: true }, // Nom de l'événement
+    eventName: { type: mongoose_1.Schema.Types.ObjectId, ref: "Event", required: true, }, // Nom de l'événement
     name: { type: String, required: true },
     phone: { type: String, required: true },
     rating: { type: Number, required: true, min: 1, max: 10 },
