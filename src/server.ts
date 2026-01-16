@@ -25,17 +25,13 @@ app.use(express.json());
 app.use(userRouter);
 app.use(pollRouter);
 
-app.get("/api/ping", (_req, res) => {
-  res.status(200).json({ message: "Server is alive 🚀" });
-});
-
 
 
 // fonction de demarrage
 const startServer = async () => {
   try {
     await connectDB();
-    const PORT = process.env.PORT || 3001;
+    const PORT = process.env.PORT || 3004;
     app.listen(PORT, () => {
       console.log(`Serveur lancé sur le port ${PORT}`);
     });
