@@ -11,7 +11,7 @@ import { isAdmin } from "../middlewares/isAdmin.middleware";
 const pollRouter = Router();
 
 
-pollRouter.post("/createPoll", authMiddleware, isAdmin, createPoll);
+pollRouter.post("/createPoll", createPoll);
 
 //Récupérer toutes les évaluations
 pollRouter.get("/allPolls", authMiddleware, isAdmin, getPolls);
