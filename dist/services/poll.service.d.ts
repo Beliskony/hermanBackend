@@ -1,19 +1,14 @@
 import { IPoll } from "../interfaces/IPoll";
 import { Types } from "mongoose";
 export declare class PollService {
-    /**
-     * Créer une nouvelle évaluation
-     */
-    create(data: IPoll): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
+    createNewPoll(eventName: string): Promise<string>;
+    createVote(eventName: string, voteData: Omit<IPoll, 'eventName' | 'submittedAt'>): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
         _id: Types.ObjectId;
     } & {
         __v: number;
     } & {
         id: string;
     }>;
-    /**
-     * Récupérer toutes les évaluations
-     */
     getAll(): Promise<(import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
         _id: Types.ObjectId;
     } & {
@@ -21,9 +16,6 @@ export declare class PollService {
     } & {
         id: string;
     })[]>;
-    /**
-     * Récupérer les évaluations par nom d'événement
-     */
     getByEventName(eventName: string): Promise<(import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
         _id: Types.ObjectId;
     } & {
@@ -31,15 +23,21 @@ export declare class PollService {
     } & {
         id: string;
     })[]>;
-    /**
-     * Supprimer une évaluation par ID
-     */
-    deleteById(_id: string): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
+    getAllEventNames(): Promise<{
+        name: any;
+        voteCount: any;
+        lastVote: any;
+    }[]>;
+    deleteVote(id: string): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
         _id: Types.ObjectId;
     } & {
         __v: number;
     } & {
         id: string;
+    }>;
+    deleteEvent(eventName: string): Promise<{
+        eventName: string;
+        deletedCount: number;
     }>;
 }
 //# sourceMappingURL=poll.service.d.ts.map

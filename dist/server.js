@@ -30,14 +30,11 @@ app.use(express_1.default.json());
 // routes
 app.use(user_route_1.default);
 app.use(poll_route_1.default);
-app.get("/api/ping", (_req, res) => {
-    res.status(200).json({ message: "Server is alive 🚀" });
-});
 // fonction de demarrage
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     try {
         yield (0, databaseConnect_1.default)();
-        const PORT = process.env.PORT || 3001;
+        const PORT = process.env.PORT || 3004;
         app.listen(PORT, () => {
             console.log(`Serveur lancé sur le port ${PORT}`);
         });

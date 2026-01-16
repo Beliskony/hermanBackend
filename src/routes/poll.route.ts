@@ -1,25 +1,28 @@
-import { Router } from "express";
+// src/routes/poll.routes.ts
+import { Router } from 'express';
 import {
+  createNewPollEvent,
   createPoll,
   getPolls,
   getPollsByEvent,
   deletePoll,
-} from "../controllers/poll.controller";
-import { authMiddleware } from "../middlewares/auth.middleware";
-import { isAdmin } from "../middlewares/isAdmin.middleware";
+  getAllEvents,
+  deleteEvent
+} from '../controllers/poll.controller';
+import { isAdmin } from '../middlewares/isAdmin.middleware';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
-const pollRouter = Router();
+const Pollrouter = Router();
 
+// Routes pour l'administration
+Pollrouter.post('/admin/events', authMiddleware, isAdmin, createNewPollEvent);           // Créer un nouvel événement/sondage
+Pollrouter.get('/admin/events', authMiddleware, isAdmin, getAllEvents);                 // Lister tous les événements
+Pollrouter.delete('/admin/events/:eventName', authMiddleware, isAdmin, deleteEvent);    // Supprimer un événement complet
+Pollrouter.get('/admin/votes', authMiddleware, isAdmin, getPolls);                      // Récupérer tous les votes
+Pollrouter.get('/admin/votes/event/:eventName', authMiddleware, isAdmin, getPollsByEvent); // Récupérer votes par événement
+Pollrouter.delete('/admin/votes/:id', authMiddleware, isAdmin, deletePoll);             // Supprimer un vote spécifique
 
-pollRouter.post("/createPoll", createPoll);
+// Routes publiques pour les utilisateurs
+Pollrouter.post('/vote', createPoll);                          // Soumettre un vote
 
-//Récupérer toutes les évaluations
-pollRouter.get("/allPolls", authMiddleware, isAdmin, getPolls);
-
-//Récupérer les évaluations par nom d'événement
-pollRouter.get("/event/:eventName", authMiddleware, isAdmin, getPollsByEvent);
-
-//Supprimer une évaluation
-pollRouter.delete("/delete/:id", authMiddleware, isAdmin, deletePoll);
-
-export default pollRouter;
+export default Pollrouter;
