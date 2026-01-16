@@ -23,10 +23,12 @@ const event_route_1 = __importDefault(require("./routes/event.route"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    origin: ["http://localhost:5173", "https://ton-domaine.com"],
+    origin: ["http://localhost:5173", "https://expertise-two.vercel.app"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
 }));
+app.options("*", (0, cors_1.default)());
 app.use(express_1.default.json());
 // routes
 app.use(user_route_1.default);

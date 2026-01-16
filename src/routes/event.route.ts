@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { EventController } from "../controllers/event.controller";
-import { isAdmin } from '../middlewares/isAdmin.middleware';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 const eventRouter = Router();
@@ -10,15 +9,15 @@ const controller = new EventController();
 eventRouter.post("/newEvent", authMiddleware, controller.create);
 
 // ---------------- GET ALL ----------------
-eventRouter.get("/AllEvents", isAdmin, authMiddleware, controller.getAll);
+eventRouter.get("/AllEvents", authMiddleware, controller.getAll);
 
 // ---------------- GET LATEST ----------------
 eventRouter.get("/latestEvent", controller.getLatest);
 
 // ---------------- UPDATE ----------------
-eventRouter.put("/updateEvent/:id", isAdmin, authMiddleware, controller.update);
+eventRouter.put("/updateEvent/:id", authMiddleware, controller.update);
 
 // ---------------- DELETE ----------------
-eventRouter.delete("/deleteEvent/:id", isAdmin, authMiddleware, controller.delete);
+eventRouter.delete("/deleteEvent/:id", authMiddleware, controller.delete);
 
 export default eventRouter;
