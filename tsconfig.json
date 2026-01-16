@@ -12,5 +12,7 @@
     "declaration": true,
     "declarationMap": true,
     "moduleDetection": "force",
-  }
+  },
+  
+  "include": ["src/**/*.ts", "src/server.ts"],
 }
