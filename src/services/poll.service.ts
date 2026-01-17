@@ -55,14 +55,23 @@ export class PollService {
   // Liste de tous les événements (noms uniques)
   async getAllEventNames() {
     const events = await Poll.aggregate([
-      {
-        $group: {
-          _id: "$eventName",
-          voteCount: { $sum: 1 },
-          lastVote: { $max: "$submittedAt" }
+         {
+        $lookup: {
+          from: "polls",        // nom de la collection Poll dans MongoDB
+          localField: "_id",
+          foreignField: "eventId", // si ton Poll a un champ eventId qui référence Event
+          as: "votes"
         }
       },
-      { $sort: { lastVote: -1 } }
+      {
+        $project: {
+          _id: 1,
+          name: "$EventName",           // map EventName → name pour le frontend
+          voteCount: { $size: "$votes" },
+          lastVote: { $max: "$votes.submittedAt" } // ou createdAt selon ton Poll
+        }
+      },
+      { $sort: { lastVote: -1 } } // trier par dernier vote
     ]);
     
     return events.map(event => ({
