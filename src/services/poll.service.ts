@@ -59,14 +59,14 @@ export class PollService {
         $lookup: {
           from: "polls",        // nom de la collection Poll dans MongoDB
           localField: "_id",
-          foreignField: "eventId", // si ton Poll a un champ eventId qui référence Event
+          foreignField: "eventName",
           as: "votes"
         }
       },
       {
         $project: {
           _id: 1,
-          name: "$EventName",           // map EventName → name pour le frontend
+          name: "$name",           // map EventName → name pour le frontend
           voteCount: { $size: "$votes" },
           lastVote: { $max: "$votes.submittedAt" } // ou createdAt selon ton Poll
         }
@@ -75,7 +75,8 @@ export class PollService {
     ]);
     
     return events.map(event => ({
-      name: event._id,
+      _id: event._id,
+      name: event.name,
       voteCount: event.voteCount,
       lastVote: event.lastVote
     }));
