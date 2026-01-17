@@ -56,10 +56,10 @@ export class EventController {
     try {
       const event = await eventService.getLatestEvent();
 
-      return res.status(200).json({
-        success: true,
-        data: event
-      });
+      return  res.status(200).json({
+      _id: event._id,
+      name: event.EventName
+    });
 
     } catch (error: any) {
       return res.status(404).json({
