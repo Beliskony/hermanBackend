@@ -66,7 +66,7 @@ export class PollService {
       {
         $project: {
           _id: 1,
-          name: "$name",           // map EventName → name pour le frontend
+          name: "$EventName",           // map EventName → name pour le frontend
           voteCount: { $size: "$votes" },
           lastVote: { $max: "$votes.submittedAt" } // ou createdAt selon ton Poll
         }
