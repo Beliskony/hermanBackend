@@ -1,4 +1,5 @@
 import { Poll, IPoll } from "../interfaces/IPoll";
+import { Event } from "../interfaces/IEvent";
 import { Types } from "mongoose";
 
 export class PollService {
@@ -53,34 +54,73 @@ export class PollService {
   }
   
   // Liste de tous les événements (noms uniques)
-  async getAllEventNames() {
-    const events = await Poll.aggregate([
-         {
+  // Liste de tous les événements (noms uniques) avec leurs statistiques
+async getAllEventNames() {
+  try {
+    console.log("Début de getAllEventNames...");
+    
+    // OPTION 1: Aggregation simple et testée
+    const events = await Event.aggregate([
+      {
         $lookup: {
-          from: "polls",        // nom de la collection Poll dans MongoDB
-          localField: "_id",
-          foreignField: "eventName",
+          from: "polls",           // Collection Poll
+          localField: "_id",       // _id de Event
+          foreignField: "eventName", // eventName dans Poll
           as: "votes"
+        }
+      },
+      {
+        $addFields: {
+          voteCount: { $size: "$votes" },
+          lastVote: {
+            $cond: {
+              if: { $gt: [{ $size: "$votes" }, 0] },
+              then: { $max: "$votes.submittedAt" },
+              else: null
+            }
+          }
         }
       },
       {
         $project: {
           _id: 1,
-          name: "$EventName",           // map EventName → name pour le frontend
-          voteCount: { $size: "$votes" },
-          lastVote: { $max: "$votes.submittedAt" } // ou createdAt selon ton Poll
+          name: "$EventName",      // Important: EventName avec majuscule
+          EventName: 1,
+          voteCount: 1,
+          lastVote: 1,
+          createdAt: 1,
+          updatedAt: 1
         }
       },
-      { $sort: { lastVote: -1 } } // trier par dernier vote
+      {
+        $sort: { 
+          lastVote: -1,
+          createdAt: -1 
+        }
+      }
     ]);
-    
-    return events.map(event => ({
-      _id: event._id,
-      name: event.name,
-      voteCount: event.voteCount,
-      lastVote: event.lastVote
+
+    console.log(`Nombre d'événements trouvés: ${events.length}`);
+    console.log("Événements:", JSON.stringify(events, null, 2));
+
+    // Formatage pour le frontend
+    const formattedEvents = events.map(event => ({
+      _id: event._id.toString(),
+      name: event.name || event.EventName || "Sans nom",
+      voteCount: event.voteCount || 0,
+      lastVote: event.lastVote ? event.lastVote.toISOString() : null,
+      createdAt: event.createdAt ? event.createdAt.toISOString() : null,
+      updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
     }));
+
+    console.log("Événements formatés:", formattedEvents);
+    return formattedEvents;
+
+  } catch (error) {
+    console.error("Erreur dans getAllEventNames:", error);
+    throw error;
   }
+}
   
   // Supprimer un vote
   async deleteVote(id: string) {
