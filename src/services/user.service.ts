@@ -124,6 +124,8 @@ export class UserService {
 
         const hashedPassword = await hash(newPassword, 12);
         await User.updateOne({ email }, { password: hashedPassword });
+        console.log(newPassword);
+        
 
         await this.deleteOtp(email);
     }
@@ -131,6 +133,8 @@ export class UserService {
     // --------------------- OTP Storage ---------------------
     private async storeOtp(email: string, otp: string, expiresAt: number): Promise<void> {
         this.otpStore[email] = { code: otp, expiresAt };
+        console.log(this.otpStore);
+        
     }
 
     private async getStoredOtp(email: string): Promise<{ code: string; expiresAt: number } | null> {
