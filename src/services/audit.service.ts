@@ -94,43 +94,27 @@ export class AuditService {
    */
   static async getAuditById(auditId: string, includeSpecific: boolean = true) {
   try {
-    // 1. Récupérer l'audit générique
     const genericAudit = await Audit.findById(auditId);
-    if (!genericAudit) {
-      throw new Error('Audit non trouvé');
-    }
+    if (!genericAudit) throw new Error('Audit non trouvé');
 
-    // 2. Si on ne veut pas inclure l'audit spécifique
-    if (!includeSpecific) {
-      return {
-        success: true,
-        audit: {
-          ...genericAudit.toObject(),
-          specificData: null
-        }
-      };
-    }
+    let specificData = null;
 
-    // 3. Récupérer l'audit spécifique si possible
-    const specificId = genericAudit.data?.specificAuditId;
-    const specificType = genericAudit.data?.specificAuditType as AuditType;
+    if (includeSpecific) {
+      const specificId = genericAudit.data?.specificAuditId;
+      const specificType = genericAudit.data?.specificAuditType as AuditType;
 
-    let specificAudit = null;
-    if (specificId && specificType) {
-      const SpecificModel = this.getModelByType(specificType);
-      // @ts-ignore - Problème de typage Mongoose
-      specificAudit = await SpecificModel.findById(specificId);
-      if (!specificAudit) {
-        console.warn(`Audit spécifique ${specificId} non trouvé pour l'audit ${auditId}`);
+      if (specificId && specificType) {
+        const SpecificModel = this.getModelByType(specificType);
+        // @ts-ignore
+        specificData = await SpecificModel.findById(specificId);
       }
     }
 
-    // 4. Retourner audit complet
     return {
       success: true,
       audit: {
         ...genericAudit.toObject(),
-        specificData: specificAudit ? specificAudit.toObject() : null
+        specificData: specificData ? specificData.toObject() : null
       }
     };
   } catch (error: any) {
@@ -140,75 +124,74 @@ export class AuditService {
 }
 
 
+
   /**
    * Récupérer tous les audits (avec pagination et filtres)
    */
   static async getAllAudits(
-    filters: {
-      type?: AuditType;
-      sousProjet?: string;
-      status?: 'draft' | 'completed' | 'archived';
-      dateFrom?: Date;
-      dateTo?: Date;
-      auditeur?: string;
-    } = {},
-    options: {
-      page?: number;
-      limit?: number;
-      sortBy?: string;
-      sortOrder?: 'asc' | 'desc';
-    } = {}
-  ) {
-    try {
-      const {
-        page = 1,
-        limit = 20,
-        sortBy = 'date',
-        sortOrder = 'desc'
-      } = options;
+  filters: any = {},
+  options: { page?: number; limit?: number; sortBy?: string; sortOrder?: 'asc' | 'desc' } = {}
+) {
+  try {
+    const { page = 1, limit = 20, sortBy = 'date', sortOrder = 'desc' } = options;
+    const skip = (page - 1) * limit;
 
-      const skip = (page - 1) * limit;
+    const query: any = {};
+    if (filters.type) query.type = filters.type;
+    if (filters.sousProjet) query.sousProjet = filters.sousProjet;
+    if (filters.status) query.status = filters.status;
+    if (filters.auditeur) query.auditeurs = filters.auditeur;
 
-      // Construire la requête
-      const query: any = {};
-
-      if (filters.type) query.type = filters.type;
-      if (filters.sousProjet) query.sousProjet = filters.sousProjet;
-      if (filters.status) query.status = filters.status;
-      if (filters.auditeur) query.auditeurs = filters.auditeur;
-
-      // Filtre par date
-      if (filters.dateFrom || filters.dateTo) {
-        query.date = {};
-        if (filters.dateFrom) query.date.$gte = filters.dateFrom;
-        if (filters.dateTo) query.date.$lte = filters.dateTo;
-      }
-
-      // Exécuter la requête
-      const audits = await Audit.find(query)
-        .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
-        .skip(skip)
-        .limit(limit)
-        .select('title type sousProjet date auditeurs status createdAt data');
-
-      const total = await Audit.countDocuments(query);
-
-      return {
-        success: true,
-        data: audits.map(audit => audit.toObject()),
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasMore: page * limit < total
-        }
-      };
-    } catch (error: any) {
-      console.error('Erreur récupération audits:', error);
-      throw new Error(`Échec récupération audits: ${error.message}`);
+    if (filters.dateFrom || filters.dateTo) {
+      query.date = {};
+      if (filters.dateFrom) query.date.$gte = filters.dateFrom;
+      if (filters.dateTo) query.date.$lte = filters.dateTo;
     }
+
+    const audits = await Audit.find(query)
+      .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
+      .skip(skip)
+      .limit(limit);
+
+    // Récupérer les audits spécifiques pour chaque audit
+    const auditsWithSpecific = await Promise.all(
+      audits.map(async (audit: any) => {
+        const specificId = audit.data?.specificAuditId;
+        const specificType = audit.data?.specificAuditType as AuditType;
+
+        let specificData = null;
+        if (specificId && specificType) {
+          const SpecificModel = this.getModelByType(specificType);
+          // @ts-ignore
+          specificData = await SpecificModel.findById(specificId);
+        }
+
+        return {
+          ...audit.toObject(),
+          specificData: specificData ? specificData.toObject() : null
+        };
+      })
+    );
+
+    const total = await Audit.countDocuments(query);
+
+    return {
+      success: true,
+      data: auditsWithSpecific,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total
+      }
+    };
+  } catch (error: any) {
+    console.error('Erreur récupération audits:', error);
+    throw new Error(`Échec récupération audits: ${error.message}`);
   }
+}
+
 
   /**
    * Mettre à jour un audit
