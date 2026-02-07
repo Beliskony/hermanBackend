@@ -93,50 +93,52 @@ export class AuditService {
    * Récupérer un audit complet par ID
    */
   static async getAuditById(auditId: string, includeSpecific: boolean = true) {
-    try {
-      // Récupérer l'audit générique
-      const genericAudit = await Audit.findById(auditId);
-      if (!genericAudit) {
-        throw new Error('Audit non trouvé');
-      }
+  try {
+    // 1. Récupérer l'audit générique
+    const genericAudit = await Audit.findById(auditId);
+    if (!genericAudit) {
+      throw new Error('Audit non trouvé');
+    }
 
-      if (!includeSpecific) {
-        return {
-          success: true,
-          audit: genericAudit.toObject()
-        };
-      }
-
-      // Récupérer l'audit spécifique
-      const specificId = genericAudit.data?.specificAuditId;
-      const specificType = genericAudit.data?.specificAuditType as AuditType;
-
-      if (!specificId || !specificType) {
-        return {
-          success: true,
-          audit: genericAudit.toObject(),
-          specificAudit: null
-        };
-      }
-
-      const SpecificModel = this.getModelByType(specificType);
-      // @ts-ignore - Problème de typage Mongoose
-      const specificAudit = await SpecificModel.findById(specificId);
-
-      if (!specificAudit) {
-        console.warn(`Audit spécifique ${specificId} non trouvé pour ${auditId}`);
-      }
-
+    // 2. Si on ne veut pas inclure l'audit spécifique
+    if (!includeSpecific) {
       return {
         success: true,
-        audit: genericAudit.toObject(),
-        specificAudit: specificAudit?.toObject() || null
+        audit: {
+          ...genericAudit.toObject(),
+          specificData: null
+        }
       };
-    } catch (error: any) {
-      console.error('Erreur récupération audit:', error);
-      throw new Error(`Échec récupération audit: ${error.message}`);
     }
+
+    // 3. Récupérer l'audit spécifique si possible
+    const specificId = genericAudit.data?.specificAuditId;
+    const specificType = genericAudit.data?.specificAuditType as AuditType;
+
+    let specificAudit = null;
+    if (specificId && specificType) {
+      const SpecificModel = this.getModelByType(specificType);
+      // @ts-ignore - Problème de typage Mongoose
+      specificAudit = await SpecificModel.findById(specificId);
+      if (!specificAudit) {
+        console.warn(`Audit spécifique ${specificId} non trouvé pour l'audit ${auditId}`);
+      }
+    }
+
+    // 4. Retourner audit complet
+    return {
+      success: true,
+      audit: {
+        ...genericAudit.toObject(),
+        specificData: specificAudit ? specificAudit.toObject() : null
+      }
+    };
+  } catch (error: any) {
+    console.error('Erreur récupération audit:', error);
+    throw new Error(`Échec récupération audit: ${error.message}`);
   }
+}
+
 
   /**
    * Récupérer tous les audits (avec pagination et filtres)
@@ -266,11 +268,8 @@ export class AuditService {
       // Récupérer l'audit mis à jour
       const updatedAudit = await Audit.findById(auditId);
 
-      return {
-        success: true,
-        message: 'Audit mis à jour avec succès',
-        audit: updatedAudit?.toObject()
-      };
+      return await this.getAuditById(auditId, true);
+
     } catch (error: any) {
       console.error('Erreur mise à jour audit:', error);
       throw new Error(`Échec mise à jour audit: ${error.message}`);
