@@ -7,6 +7,7 @@ import userRouter from "./routes/user.route";
 import pollRouter from "./routes/poll.route";
 import eventRouter from "./routes/event.route";
 import formRouter from "./routes/form.route";
+import wordsRouter from "./routes/words.route";
 
 dotenv.config();
 
@@ -27,7 +28,8 @@ app.use(express.json());
 app.use(userRouter);
 app.use(pollRouter);
 app.use(eventRouter);
-app.use(formRouter)
+app.use(formRouter);
+app.use(wordsRouter);
 
 
 
