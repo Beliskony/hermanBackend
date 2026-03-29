@@ -1,6 +1,6 @@
 import { IUser, User } from "../interfaces/IUser";
 import { hash, compare } from "bcryptjs";
-import nodemailer from "nodemailer";
+import MailService from "../services/sendmail.service";
 import jwt, {SignOptions} from "jsonwebtoken";
 
 export class UserService {
@@ -9,24 +9,12 @@ export class UserService {
     // Exemple simple de stockage OTP en mémoire
     private otpStore: Record<string, { code: string, expiresAt: number }> = {};
 
-    // Nodemailer transporter
-    private transporter;
 
     constructor() {
 
        this.JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
        this.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
 
-        // Configurer Nodemailer (ici avec SMTP Gmail par exemple)
-        this.transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || "smtp.gmail.com",
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: false, // true pour 465, false pour les autres ports
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        });
     }
 
     async register(user: IUser) {
@@ -104,11 +92,12 @@ export class UserService {
 
         await this.storeOtp(email, otp, Date.now() + 10 * 60 * 1000);
 
-        await this.sendEmail(
-            email,
-            "Password Reset OTP",
-            `Your OTP code is: ${otp}. It will expire in 10 minutes.`
-        );
+        await MailService.sendPasswordResetOTP({
+                to:        email,
+                userName:  user.username || 'Utilisateur',
+                otpCode:   otp,
+                expiresIn: '10 minutes',
+            });
     }
 
     async resetPasswordWithOtp(email: string, otp: string, newPassword: string): Promise<void> {
@@ -145,18 +134,5 @@ export class UserService {
         delete this.otpStore[email];
     }
 
-    // --------------------- Nodemailer ---------------------
-    private async sendEmail(to: string, subject: string, text: string): Promise<void> {
-        if (!this.transporter) throw new Error("Email transporter not initialized");
-
-        await this.transporter.sendMail({
-            from: process.env.SMTP_USER, // ton email expéditeur
-            to,
-            subject,
-            text,
-        });
-
-        console.log(`Email sent to ${to}`);
-    }
 }
 
