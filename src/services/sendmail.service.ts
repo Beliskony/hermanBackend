@@ -3,12 +3,12 @@ import nodemailer, { Transporter, SendMailOptions } from 'nodemailer';
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const mailConfig = {
-  host:     process.env.MAIL_HOST     || 'mail.acenviro.com',
+  host:     process.env.MAIL_HOST     || 'mail.acenviro.pro',
   port:     Number(process.env.MAIL_PORT) || 465,
   secure:   process.env.MAIL_SECURE !== 'false',
-  user:     process.env.MAIL_USER     || 'noreply@acenviro.com',
+  user:     process.env.MAIL_USER     || 'contacts@acenviro.pro',
   password: process.env.MAIL_PASSWORD || '',
-  from:     process.env.MAIL_FROM     || '"ACENVIRO Audit APES" <noreply@acenviro.com>',
+  from:     process.env.MAIL_FROM     || '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
   adminTo:  process.env.MAIL_ADMIN    || 'admin@acenviro.com', // destinataire admin
 };
 

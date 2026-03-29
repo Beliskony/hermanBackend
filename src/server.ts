@@ -8,6 +8,7 @@ import pollRouter from "./routes/poll.route";
 import eventRouter from "./routes/event.route";
 import formRouter from "./routes/form.route";
 import wordsRouter from "./routes/words.route";
+import SendContactMailrouter from "./routes/sendmail.route";
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use(pollRouter);
 app.use(eventRouter);
 app.use(formRouter);
 app.use(wordsRouter);
+app.use(SendContactMailrouter);
 
 
 
