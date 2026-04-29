@@ -1,4 +1,4 @@
-import { Schema, Document } from 'mongoose';
+import { Schema, Document, model } from 'mongoose';
 
 interface InspectionItem {
   status: string;
@@ -38,4 +38,5 @@ const FieldInspectionSchema = new Schema<IFieldInspection>({
   community: { type: Schema.Types.Mixed, required: true }
 });
 
+export const FieldInspection = model<IFieldInspection>('FieldInspection', FieldInspectionSchema);
 export { FieldInspectionSchema };

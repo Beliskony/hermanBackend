@@ -24,9 +24,12 @@ export declare class PollService {
         id: string;
     })[]>;
     getAllEventNames(): Promise<{
+        _id: any;
         name: any;
         voteCount: any;
         lastVote: any;
+        createdAt: any;
+        updatedAt: any;
     }[]>;
     deleteVote(id: string): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
         _id: Types.ObjectId;

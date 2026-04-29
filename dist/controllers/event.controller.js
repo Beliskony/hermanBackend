@@ -63,8 +63,8 @@ class EventController {
             try {
                 const event = yield eventService.getLatestEvent();
                 return res.status(200).json({
-                    success: true,
-                    data: event
+                    _id: event._id,
+                    name: event.EventName
                 });
             }
             catch (error) {

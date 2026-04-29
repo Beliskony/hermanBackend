@@ -26,7 +26,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.UserService = void 0;
 const IUser_1 = require("../interfaces/IUser");
 const bcryptjs_1 = require("bcryptjs");
-const nodemailer_1 = __importDefault(require("nodemailer"));
+const sendmail_service_1 = __importDefault(require("../services/sendmail.service"));
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 class UserService {
     constructor() {
@@ -34,16 +34,6 @@ class UserService {
         this.otpStore = {};
         this.JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
         this.JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
-        // Configurer Nodemailer (ici avec SMTP Gmail par exemple)
-        this.transporter = nodemailer_1.default.createTransport({
-            host: process.env.SMTP_HOST || "smtp.gmail.com",
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: false, // true pour 465, false pour les autres ports
-            auth: {
-                user: process.env.SMTP_USER,
-                pass: process.env.SMTP_PASS,
-            },
-        });
     }
     register(user) {
         return __awaiter(this, void 0, void 0, function* () {
@@ -102,7 +92,12 @@ class UserService {
             }
             const otp = Math.floor(100000 + Math.random() * 900000).toString();
             yield this.storeOtp(email, otp, Date.now() + 10 * 60 * 1000);
-            yield this.sendEmail(email, "Password Reset OTP", `Your OTP code is: ${otp}. It will expire in 10 minutes.`);
+            yield sendmail_service_1.default.sendPasswordResetOTP({
+                to: email,
+                userName: user.username || 'Utilisateur',
+                otpCode: otp,
+                expiresIn: '10 minutes',
+            });
         });
     }
     resetPasswordWithOtp(email, otp, newPassword) {
@@ -116,6 +111,7 @@ class UserService {
             }
             const hashedPassword = yield (0, bcryptjs_1.hash)(newPassword, 12);
             yield IUser_1.User.updateOne({ email }, { password: hashedPassword });
+            console.log(newPassword);
             yield this.deleteOtp(email);
         });
     }
@@ -123,6 +119,7 @@ class UserService {
     storeOtp(email, otp, expiresAt) {
         return __awaiter(this, void 0, void 0, function* () {
             this.otpStore[email] = { code: otp, expiresAt };
+            console.log(this.otpStore);
         });
     }
     getStoredOtp(email) {
@@ -133,20 +130,6 @@ class UserService {
     deleteOtp(email) {
         return __awaiter(this, void 0, void 0, function* () {
             delete this.otpStore[email];
-        });
-    }
-    // --------------------- Nodemailer ---------------------
-    sendEmail(to, subject, text) {
-        return __awaiter(this, void 0, void 0, function* () {
-            if (!this.transporter)
-                throw new Error("Email transporter not initialized");
-            yield this.transporter.sendMail({
-                from: process.env.SMTP_USER, // ton email expéditeur
-                to,
-                subject,
-                text,
-            });
-            console.log(`Email sent to ${to}`);
         });
     }
 }

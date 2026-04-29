@@ -1,4 +1,4 @@
-import { Schema, Document } from 'mongoose';
+import { Schema, Document, model } from 'mongoose';
 
 export interface IDocumentReview extends Document {
   documentsPresents: Record<string, boolean>;
@@ -17,4 +17,5 @@ const DocumentReviewSchema = new Schema<IDocumentReview>({
   autresDocuments: { type: String, default: '' }
 });
 
+export const DocumentReview = model<IDocumentReview>('DocumentReview', DocumentReviewSchema);
 export { DocumentReviewSchema };

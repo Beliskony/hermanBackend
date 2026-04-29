@@ -20,20 +20,25 @@ const databaseConnect_1 = __importDefault(require("./config/databaseConnect"));
 const user_route_1 = __importDefault(require("./routes/user.route"));
 const poll_route_1 = __importDefault(require("./routes/poll.route"));
 const event_route_1 = __importDefault(require("./routes/event.route"));
+const form_route_1 = __importDefault(require("./routes/form.route"));
+const words_route_1 = __importDefault(require("./routes/words.route"));
+const sendmail_route_1 = __importDefault(require("./routes/sendmail.route"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 app.use((0, cors_1.default)({
-    origin: ["http://localhost:5173", "https://expertise-two.vercel.app"],
+    origin: ["http://localhost:5173", "https://admin.acenviro.pro", "https://acenviro.pro"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true
 }));
-app.options("*", (0, cors_1.default)());
 app.use(express_1.default.json());
 // routes
 app.use(user_route_1.default);
 app.use(poll_route_1.default);
 app.use(event_route_1.default);
+app.use(form_route_1.default);
+app.use(words_route_1.default);
+app.use(sendmail_route_1.default);
 // fonction de demarrage
 const startServer = () => __awaiter(void 0, void 0, void 0, function* () {
     try {

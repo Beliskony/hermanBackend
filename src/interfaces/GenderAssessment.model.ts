@@ -1,4 +1,4 @@
-import { Schema, Document } from 'mongoose';
+import { Schema, Document, model } from 'mongoose';
 
 export interface IGenderAssessment extends Document {
   objectives: Array<{
@@ -81,4 +81,5 @@ const GenderAssessmentSchema = new Schema<IGenderAssessment>({
   }]
 });
 
+export const GenderAssessment = model<IGenderAssessment>('GenderAssessment', GenderAssessmentSchema);
 export { GenderAssessmentSchema };

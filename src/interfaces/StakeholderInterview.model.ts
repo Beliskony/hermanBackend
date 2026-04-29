@@ -1,4 +1,4 @@
-import { Schema, Document } from 'mongoose';
+import { Schema, Document, model } from 'mongoose';
 
 export interface IStakeholderInterview extends Document {
   date: Date;
@@ -50,4 +50,5 @@ const StakeholderInterviewSchema = new Schema<IStakeholderInterview>({
   }
 });
 
+export const StakeholderInterview = model<IStakeholderInterview>('StakeholderInterview', StakeholderInterviewSchema);
 export { StakeholderInterviewSchema };

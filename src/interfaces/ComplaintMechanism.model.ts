@@ -1,4 +1,4 @@
-import { Schema, Document } from 'mongoose';
+import { Schema, Document, model } from 'mongoose';
 
 export interface IComplaintMechanism extends Document {
   documentaryBasis: Record<string, { 
@@ -42,5 +42,7 @@ const ComplaintMechanismSchema = new Schema<IComplaintMechanism>({
   }],
   globalConclusion: { type: String, required: true }
 });
+
+export const ComplaintMechanism = model<IComplaintMechanism>('ComplaintMechanism', ComplaintMechanismSchema);
 
 export { ComplaintMechanismSchema };

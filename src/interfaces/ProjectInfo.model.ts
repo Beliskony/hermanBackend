@@ -1,4 +1,4 @@
-import { Schema, Document } from 'mongoose';
+import { Schema, Document, model } from 'mongoose';
 
 export interface IProjectInfo extends Document {
   projectName: string;
@@ -16,4 +16,5 @@ const ProjectInfoSchema = new Schema<IProjectInfo>({
   period: { type: String, required: true }
 });
 
+export const ProjectInfo = model<IProjectInfo>('ProjectInfo', ProjectInfoSchema);
 export { ProjectInfoSchema };
