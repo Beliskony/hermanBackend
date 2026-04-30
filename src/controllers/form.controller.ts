@@ -110,9 +110,17 @@ export const submitForm = async (req: Request, res: Response) => {
 export const getStats = async (req: Request, res: Response) => {
   try {
     const stats = await formService.getFormStats();
-    res.status(200).json({ success: true, data: stats });
+    res.status(200).json({ 
+      success: true, 
+      data: stats,
+      timestamp: new Date().toISOString()
+    });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la récupération des statistiques' });
+    console.error('Erreur getStats:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || 'Erreur lors de la récupération des statistiques' 
+    });
   }
 };
 
