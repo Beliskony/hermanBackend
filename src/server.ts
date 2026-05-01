@@ -30,8 +30,8 @@ app.use(userRouter);
 app.use(pollRouter);
 app.use(eventRouter);
 app.use(formRouter);
-app.use(wordsRouter);
-app.use('/words', SendContactMailrouter);
+app.use('/words',wordsRouter);
+app.use(SendContactMailrouter);
 
 
 
