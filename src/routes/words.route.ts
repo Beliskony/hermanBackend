@@ -13,31 +13,15 @@ const controller = new WordExportController();
  */
 
 // APES Form
-wordsRouter.get(
-  "/form/:id/export", 
-  authMiddleware, 
-  controller.exportFormToWord
-);
+wordsRouter.get( "/form/:id/export", authMiddleware, controller.exportFormToWord );
 
 // Checklist Audit
-wordsRouter.get(
-  "/checklist-audit/:id/export", 
-  authMiddleware, 
-  controller.exportChecklistAuditToWord
-);
+wordsRouter.get( "/checklist-audit/:id/export", authMiddleware, controller.exportChecklistAuditToWord );
 
 // Checklist Conducteur
-wordsRouter.get(
-  "/checklist-conducteur/:id/export", 
-  authMiddleware, 
-  controller.exportChecklistConducteurToWord
-);
+wordsRouter.get( "/checklist-conducteur/:id/export", authMiddleware, controller.exportChecklistConducteurToWord );
 
 // Guide Entretien
-wordsRouter.get(
-  "/guide-entretien/:id/export", 
-  authMiddleware, 
-  controller.exportGuideEntretienToWord
-);
+wordsRouter.get( "/guide-entretien/:id/export", authMiddleware, controller.exportGuideEntretienToWord );
 
 export default wordsRouter;
