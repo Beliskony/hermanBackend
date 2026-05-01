@@ -605,6 +605,7 @@ function buildCritereTable(items: any[]): (Paragraph | Table)[] {
   return [new Table({ width: { size: TW, type: WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
 }
 
+
 function buildDocumentAuditTable(items: any[]): (Paragraph | Table)[] {
   if (!items || items.length === 0) return [];
 
@@ -878,12 +879,15 @@ function buildGuideCoverPage(data: IGuideEntretien): (Paragraph | Table)[] {
   ];
 }
 
-function buildThemeTable(theme: { questions: Array<{ questionId: string; question: string; reponse: string }>, nuisancesObservees?: any }, title: string, showNuisances = false): (Paragraph | Table)[] {
+// services/words.service.ts
+
+function buildThemeTable(theme: { questions: Array<{ questionId: string; question: string; reponse: string; observations?: string }>, nuisancesObservees?: any }, title: string, showNuisances = false): (Paragraph | Table)[] {
   if (!theme || !theme.questions || theme.questions.length === 0) {
     return [new Paragraph({ children: [new TextRun({ text: `Aucune donnée pour ${title}`, size: 20, color: C.muted, font: 'Calibri', italics: true })] }), spacer(160)];
   }
 
-  const COL = showNuisances ? [800, 3000, 2000, 2000, 1838] : [800, 4000, 2000, 2838];
+  // Ajuster les colonnes si on affiche les nuisances
+  const COL = showNuisances ? [600, 3200, 2000, 2000, 1838] : [600, 4000, 2500, 2538];
   const headers = showNuisances 
     ? ['N°', 'Question', 'Réponse', 'Nuisances observées', 'Notes']
     : ['N°', 'Question', 'Réponse', 'Notes'];
@@ -893,23 +897,34 @@ function buildThemeTable(theme: { questions: Array<{ questionId: string; questio
     ...theme.questions.map((q, i) => {
       const shade = i % 2 === 1;
       
-      if (showNuisances && (theme as any).nuisancesObservees) {
-        const nuisances = (theme as any).nuisancesObservees;
-        const nuisancesText = [
-          nuisances.poussiere ? 'Poussière ✓' : '',
-          nuisances.bruit ? 'Bruit ✓' : '',
-          nuisances.circulation ? 'Circulation ✓' : '',
-          nuisances.odeurs ? 'Odeurs ✓' : '',
-          nuisances.dechets ? 'Déchets ✓' : '',
-        ].filter(t => t).join(', ') || 'Aucune';
-        
+      // Récupérer les notes/observations
+      const notes = (q as any).observations || (q as any).notes || '—';
+      
+      // Pour le thème 2, récupérer les nuisances depuis la question elle-même
+      let nuisancesText = '—';
+      if (showNuisances && (q as any).nuisancesObservees) {
+        const nuisances = (q as any).nuisancesObservees;
+        const nuisancesList = [
+          nuisances.poussiere ? '✓ Poussière' : '',
+          nuisances.bruit ? '✓ Bruit' : '',
+          nuisances.circulation ? '✓ Circulation' : '',
+          nuisances.odeurs ? '✓ Odeurs' : '',
+          nuisances.dechets ? '✓ Déchets' : '',
+          nuisances.vibrations ? '✓ Vibrations' : '',
+          nuisances.fumee ? '✓ Fumée' : '',
+          nuisances.eclairage ? '✓ Éclairage' : ''
+        ].filter(t => t).join(', ');
+        nuisancesText = nuisancesList || 'Aucune nuisance signalée';
+      }
+      
+      if (showNuisances) {
         return new TableRow({
           children: [
             dCell(q.questionId, COL[0], { shade, center: true }),
             dCell(q.question, COL[1], { shade }),
             dCell(q.reponse || '—', COL[2], { shade }),
             dCell(nuisancesText, COL[3], { shade }),
-            dCell('—', COL[4], { shade }),
+            dCell(notes, COL[4], { shade }),  // ← Affiche les notes ici
           ],
         });
       }
@@ -919,17 +934,13 @@ function buildThemeTable(theme: { questions: Array<{ questionId: string; questio
           dCell(q.questionId, COL[0], { shade, center: true }),
           dCell(q.question, COL[1], { shade }),
           dCell(q.reponse || '—', COL[2], { shade }),
-          dCell('—', COL[3], { shade }),
+          dCell(notes, COL[3], { shade }),  // ← Affiche les notes ici
         ],
       });
     }),
   ];
 
-  return [
-    ...subTitle(title),
-    new Table({ width: { size: TW, type: WidthType.DXA }, columnWidths: COL, rows }),
-    spacer(200),
-  ];
+  return [new Table({ width: { size: TW, type: WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
 }
 
 export async function exportGuideEntretienWord(data: IGuideEntretien): Promise<Buffer> {
