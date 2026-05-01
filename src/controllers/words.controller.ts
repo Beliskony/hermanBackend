@@ -1,5 +1,3 @@
-// controllers/words.controller.ts
-
 import { Request, Response } from 'express';
 import { FormData } from '../interfaces/FormData.model';
 import { ChecklistAudit, ChecklistConducteurTravaux } from '../interfaces/ChecklistAudit.model';
