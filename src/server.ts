@@ -53,7 +53,7 @@ const keepAlive = () => {
     } catch (err) {
       console.error("[keep-alive] ping échoué :", err);
     }
-  }, 14 * 60 * 1000); // 14 minutes
+  }, 5 * 60 * 1000); // 5 minutes
 };
 
   try {
