@@ -8,8 +8,8 @@ const mailConfig = {
   secure:   process.env.MAIL_SECURE !== 'false',
   user:     process.env.MAIL_USER     || 'contacts@acenviro.pro',
   password: process.env.MAIL_PASSWORD || '=5o*1kbjx#DoBE+k',
-  from:     process.env.MAIL_FROM     || '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
-  adminTo:  process.env.MAIL_ADMIN    || 'contacts@acenviro.pro',
+  from:     '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
+  adminTo:  'contacts@acenviro.pro',
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ class MailService {
 
   private async send(params: SendMailParams): Promise<void> {
     const options: SendMailOptions = {
-      from:    mailConfig.adminTo,
+      from:    mailConfig.from,
       to:      Array.isArray(params.to) ? params.to.join(', ') : params.to,
       subject: params.subject,
       html:    params.html,
