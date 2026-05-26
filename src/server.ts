@@ -23,6 +23,10 @@ app.use(cors({
 
 app.use(express.json());
 
+app.get("/health", (_req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 
 
 // routes
@@ -35,13 +39,29 @@ app.use(SendContactMailrouter);
 
 
 
+
 // fonction de demarrage
 const startServer = async () => {
+
+  // Ping toutes les 14 minutes pour éviter le sleep sur Render
+const keepAlive = () => {
+  const url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 3004}`;
+  setInterval(async () => {
+    try {
+      await fetch(`${url}/health`);
+      console.log(`[keep-alive] ping envoyé à ${new Date().toISOString()}`);
+    } catch (err) {
+      console.error("[keep-alive] ping échoué :", err);
+    }
+  }, 14 * 60 * 1000); // 14 minutes
+};
+
   try {
     await connectDB();
     const PORT = process.env.PORT || 3004;
     app.listen(PORT, () => {
       console.log(`Serveur lancé sur le port ${PORT}`);
+      keepAlive();
     });
   } catch (error) {
     console.error("Erreur au démarrage du serveur :", error);
