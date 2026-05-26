@@ -20,8 +20,8 @@ const mailConfig = {
     secure: process.env.MAIL_SECURE !== 'false',
     user: process.env.MAIL_USER || 'contacts@acenviro.pro',
     password: process.env.MAIL_PASSWORD || '=5o*1kbjx#DoBE+k',
-    from: process.env.MAIL_FROM || '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
-    adminTo: process.env.MAIL_ADMIN || 'contacts@acenviro.pro',
+    from: '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
+    adminTo: 'contacts@acenviro.pro',
 };
 // ─── Couleurs urgence ─────────────────────────────────────────────────────────
 // Clés alignées avec les <option value="..."> du formulaire front
@@ -58,7 +58,7 @@ class MailService {
     }
     send(params) {
         return __awaiter(this, void 0, void 0, function* () {
-            const options = Object.assign({ from: mailConfig.adminTo, to: Array.isArray(params.to) ? params.to.join(', ') : params.to, subject: params.subject, html: params.html, text: params.text || this.htmlToText(params.html) }, (params.replyTo && { replyTo: params.replyTo }));
+            const options = Object.assign({ from: mailConfig.from, to: Array.isArray(params.to) ? params.to.join(', ') : params.to, subject: params.subject, html: params.html, text: params.text || this.htmlToText(params.html) }, (params.replyTo && { replyTo: params.replyTo }));
             try {
                 const info = yield this.transporter.sendMail(options);
                 console.log(`[MailService] Envoyé → ${params.to} | ID: ${info.messageId}`);

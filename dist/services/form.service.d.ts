@@ -40,6 +40,8 @@ export declare class FormService {
      * Statistiques des formulaires
      */
     getFormStats(): Promise<any>;
+    private formatStats;
+    private mergeStatsByStatus;
     createGuideEntretien(data: Partial<IGuideEntretien>): Promise<IGuideEntretien>;
     getGuideEntretienById(id: string): Promise<IGuideEntretien | null>;
     getAllGuideEntretiens(filters?: {

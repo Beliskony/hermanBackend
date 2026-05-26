@@ -10,34 +10,38 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateFormDataWordDocument = generateFormDataWordDocument;
+exports.exportChecklistAuditWord = exportChecklistAuditWord;
+exports.exportChecklistConducteurWord = exportChecklistConducteurWord;
+exports.exportGuideEntretienWord = exportGuideEntretienWord;
 const docx_1 = require("docx");
 // ─── Palette & constantes ────────────────────────────────────────────────────
 const C = {
-    primary: '1B3A5C', // bleu marine profond
-    secondary: '2E75B6', // bleu moyen
-    accent: '00B0A0', // teal pour séparateurs
-    headerBg: '1B3A5C', // fond en-tête tableau = primary
-    headerText: 'FFFFFF', // texte en-tête tableau
-    subBg: 'D6E4F0', // fond sous-en-tête
-    altRow: 'F0F6FB', // ligne alternée
+    primary: '1B3A5C',
+    secondary: '2E75B6',
+    accent: '00B0A0',
+    headerBg: '1B3A5C',
+    headerText: 'FFFFFF',
+    subBg: 'D6E4F0',
+    altRow: 'F0F6FB',
     white: 'FFFFFF',
     lightGray: 'F5F5F5',
     borderCol: 'B8CCE4',
     muted: '6B7A8D',
     text: '1A1A2E',
+    green: '1A7A4A',
+    red: 'C0392B',
+    yellow: 'C07000',
 };
-// Page A4 avec marges 2cm
 const PAGE = {
     width: 11906,
     height: 16838,
-    margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 }, // ~2cm
+    margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 },
 };
-// Largeur utile = 11906 - 1134*2 = 9638 DXA
 const TW = 9638;
 const BORDER = (color = C.borderCol) => ({ style: docx_1.BorderStyle.SINGLE, size: 4, color });
 const NO_BORDER = { style: docx_1.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const CELL_MARGINS = { top: 100, bottom: 100, left: 140, right: 140 };
-// ─── Helpers tableaux ────────────────────────────────────────────────────────
+// ─── Helpers génériques ──────────────────────────────────────────────────────
 function hCell(text, width, center = false) {
     return new docx_1.TableCell({
         width: { size: width, type: docx_1.WidthType.DXA },
@@ -52,15 +56,7 @@ function hCell(text, width, center = false) {
         children: [
             new docx_1.Paragraph({
                 alignment: center ? docx_1.AlignmentType.CENTER : docx_1.AlignmentType.LEFT,
-                children: [
-                    new docx_1.TextRun({
-                        text,
-                        bold: true,
-                        color: C.headerText,
-                        size: 18,
-                        font: 'Calibri',
-                    }),
-                ],
+                children: [new docx_1.TextRun({ text, bold: true, color: C.headerText, size: 18, font: 'Calibri' })],
             }),
         ],
     });
@@ -71,28 +67,18 @@ function dCell(text, width, options = {}) {
         width: { size: width, type: docx_1.WidthType.DXA },
         shading: { fill: shade ? C.altRow : C.white, type: docx_1.ShadingType.CLEAR },
         margins: CELL_MARGINS,
-        borders: {
-            top: BORDER(),
-            bottom: BORDER(),
-            left: BORDER(),
-            right: BORDER(),
-        },
+        borders: { top: BORDER(), bottom: BORDER(), left: BORDER(), right: BORDER() },
         children: [
             new docx_1.Paragraph({
                 alignment: center ? docx_1.AlignmentType.CENTER : docx_1.AlignmentType.LEFT,
-                children: [
-                    new docx_1.TextRun({ text: String(text !== null && text !== void 0 ? text : '—'), bold, color, size: 18, font: 'Calibri' }),
-                ],
+                children: [new docx_1.TextRun({ text: String(text !== null && text !== void 0 ? text : '—'), bold, color, size: 18, font: 'Calibri' })],
             }),
         ],
     });
 }
-// Ligne de séparation visuelle sous un titre de section
 function divider() {
     return new docx_1.Paragraph({
-        border: {
-            bottom: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 1 },
-        },
+        border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 1 } },
         spacing: { after: 160 },
         children: [],
     });
@@ -115,16 +101,7 @@ function subTitle(text) {
         new docx_1.Paragraph({
             heading: docx_1.HeadingLevel.HEADING_2,
             spacing: { before: 280, after: 80 },
-            children: [
-                new docx_1.TextRun({
-                    text,
-                    bold: true,
-                    size: 22,
-                    color: C.secondary,
-                    font: 'Calibri',
-                    underline: { type: docx_1.UnderlineType.SINGLE, color: C.secondary },
-                }),
-            ],
+            children: [new docx_1.TextRun({ text, bold: true, size: 22, color: C.secondary, font: 'Calibri', underline: { type: docx_1.UnderlineType.SINGLE, color: C.secondary } })],
         }),
     ];
 }
@@ -143,85 +120,43 @@ function pageBreak() {
 function spacer(after = 120) {
     return new docx_1.Paragraph({ spacing: { after }, children: [] });
 }
-// ─── En-tête & pied de page ──────────────────────────────────────────────────
-function buildHeader(projectName) {
+function buildHeader(title) {
     return new docx_1.Header({
         children: [
             new docx_1.Paragraph({
-                border: {
-                    bottom: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.primary, space: 1 },
-                },
+                border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.primary, space: 1 } },
                 spacing: { after: 0 },
                 tabStops: [{ type: docx_1.TabStopType.RIGHT, position: docx_1.TabStopPosition.MAX }],
                 children: [
-                    new docx_1.TextRun({
-                        text: 'RAPPORT D\'AUDIT ENVIRONNEMENTAL ET SOCIAL',
-                        bold: true,
-                        size: 16,
-                        color: C.primary,
-                        font: 'Calibri',
-                    }),
-                    new docx_1.TextRun({
-                        text: `\t${projectName}`,
-                        size: 16,
-                        color: C.muted,
-                        font: 'Calibri',
-                        italics: true,
-                    }),
+                    new docx_1.TextRun({ text: title.toUpperCase(), bold: true, size: 16, color: C.primary, font: 'Calibri' }),
+                    new docx_1.TextRun({ text: `\t${new Date().toLocaleDateString('fr-FR')}`, size: 16, color: C.muted, font: 'Calibri', italics: true }),
                 ],
             }),
         ],
     });
 }
 function buildFooter(generatedAt) {
+    const dateStr = generatedAt || new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
     return new docx_1.Footer({
         children: [
             new docx_1.Paragraph({
-                border: {
-                    top: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.accent, space: 1 },
-                },
+                border: { top: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.accent, space: 1 } },
                 spacing: { before: 80 },
                 tabStops: [{ type: docx_1.TabStopType.RIGHT, position: docx_1.TabStopPosition.MAX }],
                 children: [
-                    new docx_1.TextRun({
-                        text: `Document généré le ${generatedAt}  —  Confidentiel`,
-                        size: 14,
-                        color: C.muted,
-                        font: 'Calibri',
-                        italics: true,
-                    }),
-                    new docx_1.TextRun({
-                        text: '\tPage ',
-                        size: 14,
-                        color: C.muted,
-                        font: 'Calibri',
-                    }),
-                    new docx_1.TextRun({
-                        children: [docx_1.PageNumber.CURRENT],
-                        size: 14,
-                        color: C.primary,
-                        bold: true,
-                        font: 'Calibri',
-                    }),
-                    new docx_1.TextRun({
-                        text: ' / ',
-                        size: 14,
-                        color: C.muted,
-                        font: 'Calibri',
-                    }),
-                    new docx_1.TextRun({
-                        children: [docx_1.PageNumber.TOTAL_PAGES],
-                        size: 14,
-                        color: C.primary,
-                        bold: true,
-                        font: 'Calibri',
-                    }),
+                    new docx_1.TextRun({ text: `Document généré le ${dateStr}  —  Confidentiel`, size: 14, color: C.muted, font: 'Calibri', italics: true }),
+                    new docx_1.TextRun({ text: '\tPage ', size: 14, color: C.muted, font: 'Calibri' }),
+                    new docx_1.TextRun({ children: [docx_1.PageNumber.CURRENT], size: 14, color: C.primary, bold: true, font: 'Calibri' }),
+                    new docx_1.TextRun({ text: ' / ', size: 14, color: C.muted, font: 'Calibri' }),
+                    new docx_1.TextRun({ children: [docx_1.PageNumber.TOTAL_PAGES], size: 14, color: C.primary, bold: true, font: 'Calibri' }),
                 ],
             }),
         ],
     });
 }
-// ─── Page de garde ───────────────────────────────────────────────────────────
+// =============================================================================
+// 1. EXPORT APES (FORMULAIRE COMPLET)
+// =============================================================================
 function buildCoverPage(data) {
     const { projectInfo } = data;
     const date = new Date(projectInfo.date).toLocaleDateString('fr-FR', {
@@ -271,80 +206,26 @@ function buildCoverPage(data) {
         })),
     });
     return [
-        // Espace haut
         new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
-        // Titre principal
-        new docx_1.Paragraph({
-            alignment: docx_1.AlignmentType.CENTER,
-            spacing: { after: 80 },
-            children: [
-                new docx_1.TextRun({
-                    text: 'RAPPORT D\'AUDIT',
-                    bold: true,
-                    size: 64,
-                    color: C.primary,
-                    font: 'Calibri',
-                }),
-            ],
-        }),
-        new docx_1.Paragraph({
-            alignment: docx_1.AlignmentType.CENTER,
-            spacing: { after: 80 },
-            children: [
-                new docx_1.TextRun({
-                    text: 'ENVIRONNEMENTAL ET SOCIAL',
-                    bold: true,
-                    size: 48,
-                    color: C.secondary,
-                    font: 'Calibri',
-                }),
-            ],
-        }),
-        // Ligne décorative
-        new docx_1.Paragraph({
-            alignment: docx_1.AlignmentType.CENTER,
-            border: {
-                bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 },
-            },
-            spacing: { after: 600 },
-            children: [],
-        }),
-        // Tableau d'infos centré
-        new docx_1.Paragraph({
-            alignment: docx_1.AlignmentType.CENTER,
-            spacing: { after: 200 },
-            children: [],
-        }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'RAPPORT D\'AUDIT', bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'ENVIRONNEMENTAL ET SOCIAL', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 200 }, children: [] }),
         infoTable,
         pageBreak(),
     ];
 }
-// ─── 1. Revue documentaire ───────────────────────────────────────────────────
 function buildDocumentReview(data) {
     const { documentReview } = data;
     const COL = [3200, 900, 3538, 2000];
     const rows = [
-        new docx_1.TableRow({
-            tableHeader: true,
-            children: [
-                hCell('Document', COL[0]),
-                hCell('Présent', COL[1], true),
-                hCell('Observations', COL[2]),
-                hCell('Conformité', COL[3], true),
-            ],
-        }),
+        new docx_1.TableRow({ tableHeader: true, children: [hCell('Document', COL[0]), hCell('Présent', COL[1], true), hCell('Observations', COL[2]), hCell('Conformité', COL[3], true)] }),
         ...Object.keys(documentReview.documentsPresents || {}).map((key, i) => {
             var _a;
             const present = documentReview.documentsPresents[key];
             const analysis = (_a = documentReview.documentsAnalysis) === null || _a === void 0 ? void 0 : _a[key];
             const shade = i % 2 === 1;
-            // Couleur selon conformité
-            const ratingColor = {
-                conforme: '1A7A4A',
-                partiel: 'C07000',
-                'non-conforme': 'C0392B',
-                'n/a': C.muted,
-            };
+            const ratingColor = { conforme: '1A7A4A', partiel: 'C07000', 'non-conforme': 'C0392B', 'n/a': C.muted };
             const rating = (analysis === null || analysis === void 0 ? void 0 : analysis.rating) || 'n/a';
             const rColor = ratingColor[rating] || C.text;
             return new docx_1.TableRow({
@@ -366,27 +247,13 @@ function buildDocumentReview(data) {
         pageBreak(),
     ];
 }
-// ─── 2. Inspection de terrain ────────────────────────────────────────────────
 function buildInspectionCategory(title, items) {
     if (!items || Object.keys(items).length === 0)
         return [];
     const COL = [2800, 1400, 3638, 1800];
-    const riskColor = {
-        faible: '1A7A4A',
-        moyen: 'C07000',
-        élevé: 'C0392B',
-        critique: '8B0000',
-    };
+    const riskColor = { faible: '1A7A4A', moyen: 'C07000', élevé: 'C0392B', critique: '8B0000' };
     const rows = [
-        new docx_1.TableRow({
-            tableHeader: true,
-            children: [
-                hCell('Élément inspecté', COL[0]),
-                hCell('Statut', COL[1], true),
-                hCell('Observations', COL[2]),
-                hCell('Niveau de risque', COL[3], true),
-            ],
-        }),
+        new docx_1.TableRow({ tableHeader: true, children: [hCell('Élément inspecté', COL[0]), hCell('Statut', COL[1], true), hCell('Observations', COL[2]), hCell('Niveau de risque', COL[3], true)] }),
         ...Object.entries(items).map(([key, val], i) => {
             const riskKey = (val.risk || '').toLowerCase();
             const rColor = Object.keys(riskColor).find(k => riskKey.includes(k));
@@ -400,17 +267,12 @@ function buildInspectionCategory(title, items) {
             });
         }),
     ];
-    return [
-        ...subTitle(title),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }),
-        spacer(200),
-    ];
+    return [...subTitle(title), new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
 }
 function buildFieldInspection(data) {
     const { fieldInspection } = data;
     return [
         ...sectionTitle('02', 'Inspection de Terrain'),
-        // Fiche synthèse
         ...subTitle('Informations générales'),
         kvParagraph('Projet', fieldInspection.projectName),
         kvParagraph('Date', new Date(fieldInspection.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })),
@@ -426,7 +288,6 @@ function buildFieldInspection(data) {
         pageBreak(),
     ];
 }
-// ─── 3. Entretiens parties prenantes ─────────────────────────────────────────
 function buildStakeholderInterview(data) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p;
     const { stakeholderInterview } = data;
@@ -445,13 +306,7 @@ function buildStakeholderInterview(data) {
         ].map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, COL2[0], { shade: i % 2 === 1, bold: true }), dCell(v || '—', COL2[1], { shade: i % 2 === 1 })] })),
     ];
     const COL_CONSENT = [3200, 3219, 3219];
-    const consentRow = new docx_1.TableRow({
-        children: [
-            hCell('Confidentialité', COL_CONSENT[0]),
-            hCell('Prise de notes', COL_CONSENT[1], true),
-            hCell('Enregistrement', COL_CONSENT[2], true),
-        ],
-    });
+    const consentRow = new docx_1.TableRow({ children: [hCell('Confidentialité', COL_CONSENT[0]), hCell('Prise de notes', COL_CONSENT[1], true), hCell('Enregistrement', COL_CONSENT[2], true)] });
     const consentData = new docx_1.TableRow({
         children: [
             dCell(((_e = stakeholderInterview.consent) === null || _e === void 0 ? void 0 : _e.confidentiality) ? '✓ Accordée' : '✗ Refusée', COL_CONSENT[0], { center: true, bold: true, color: ((_f = stakeholderInterview.consent) === null || _f === void 0 ? void 0 : _f.confidentiality) ? '1A7A4A' : 'C0392B' }),
@@ -464,23 +319,24 @@ function buildStakeholderInterview(data) {
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Question', COL2[0]), hCell('Réponse', COL2[1])] }),
         ...responseKeys.map((k, i) => new docx_1.TableRow({ children: [dCell(k, COL2[0], { shade: i % 2 === 1, bold: true }), dCell(stakeholderInterview.responses[k], COL2[1], { shade: i % 2 === 1 })] })),
     ];
-    // Évaluation avec étoiles visuelles
     const evalEntries = [
         ['Qualité', (_l = stakeholderInterview.evaluation) === null || _l === void 0 ? void 0 : _l.quality],
         ['Franchise', (_m = stakeholderInterview.evaluation) === null || _m === void 0 ? void 0 : _m.frankness],
         ['Pertinence', (_o = stakeholderInterview.evaluation) === null || _o === void 0 ? void 0 : _o.relevance],
         ['Climat', (_p = stakeholderInterview.evaluation) === null || _p === void 0 ? void 0 : _p.climate],
     ];
-    const EVAl_COL = [2400, 2000, 5238];
+    const EVAL_COL = [2400, 2000, 5238];
     const evalRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', EVAl_COL[0]), hCell('Note /5', EVAl_COL[1], true), hCell('Représentation', EVAl_COL[2])] }),
+        new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', EVAL_COL[0]), hCell('Note /5', EVAL_COL[1], true), hCell('Représentation', EVAL_COL[2])] }),
         ...evalEntries.map(([k, v], i) => {
             const stars = '★'.repeat(v || 0) + '☆'.repeat(5 - (v || 0));
-            return new docx_1.TableRow({ children: [
-                    dCell(k, EVAl_COL[0], { shade: i % 2 === 1, bold: true }),
-                    dCell(String(v || '—'), EVAl_COL[1], { shade: i % 2 === 1, center: true, bold: true, color: C.secondary }),
-                    dCell(stars, EVAl_COL[2], { shade: i % 2 === 1, color: C.secondary }),
-                ] });
+            return new docx_1.TableRow({
+                children: [
+                    dCell(k, EVAL_COL[0], { shade: i % 2 === 1, bold: true }),
+                    dCell(String(v || '—'), EVAL_COL[1], { shade: i % 2 === 1, center: true, bold: true, color: C.secondary }),
+                    dCell(stars, EVAL_COL[2], { shade: i % 2 === 1, color: C.secondary }),
+                ],
+            });
         }),
     ];
     return [
@@ -495,58 +351,32 @@ function buildStakeholderInterview(data) {
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL2, rows: responseRows }),
         spacer(200),
         ...subTitle('Évaluation de la qualité de l\'entretien'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: EVAl_COL, rows: evalRows }),
+        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: EVAL_COL, rows: evalRows }),
         spacer(160),
         pageBreak(),
     ];
 }
-// ─── 4. Évaluation Genre ─────────────────────────────────────────────────────
 function buildGenderAssessment(data) {
     const { genderAssessment } = data;
-    // Objectifs
     const OBJ_COL = [3800, 3000, 2838];
     const objRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Objectif', OBJ_COL[0]), hCell('Indicateur', OBJ_COL[1]), hCell('Statut', OBJ_COL[2], true)] }),
-        ...(genderAssessment.objectives || []).map((o, i) => new docx_1.TableRow({ children: [
-                dCell(o.objective, OBJ_COL[0], { shade: i % 2 === 1 }),
-                dCell(o.indicator, OBJ_COL[1], { shade: i % 2 === 1 }),
-                dCell(o.status, OBJ_COL[2], { shade: i % 2 === 1, center: true, bold: true }),
-            ] })),
+        ...(genderAssessment.objectives || []).map((o, i) => new docx_1.TableRow({ children: [dCell(o.objective, OBJ_COL[0], { shade: i % 2 === 1 }), dCell(o.indicator, OBJ_COL[1], { shade: i % 2 === 1 }), dCell(o.status, OBJ_COL[2], { shade: i % 2 === 1, center: true, bold: true })] })),
     ];
-    // Données quantitatives
     const QT_COL = [2638, 1500, 1500, 1500, 2500];
     const qtRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Catégorie', QT_COL[0]), hCell('Femmes', QT_COL[1], true), hCell('Hommes', QT_COL[2], true), hCell('Autres', QT_COL[3], true), hCell('Source', QT_COL[4])] }),
-        ...Object.entries(genderAssessment.quantitativeData || {}).map(([k, v], i) => new docx_1.TableRow({ children: [
-                dCell(k, QT_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(String(v.women), QT_COL[1], { shade: i % 2 === 1, center: true }),
-                dCell(String(v.men), QT_COL[2], { shade: i % 2 === 1, center: true }),
-                dCell(String(v.other), QT_COL[3], { shade: i % 2 === 1, center: true }),
-                dCell(v.source, QT_COL[4], { shade: i % 2 === 1 }),
-            ] })),
+        ...Object.entries(genderAssessment.quantitativeData || {}).map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, QT_COL[0], { shade: i % 2 === 1, bold: true }), dCell(String(v.women), QT_COL[1], { shade: i % 2 === 1, center: true }), dCell(String(v.men), QT_COL[2], { shade: i % 2 === 1, center: true }), dCell(String(v.other), QT_COL[3], { shade: i % 2 === 1, center: true }), dCell(v.source, QT_COL[4], { shade: i % 2 === 1 })] })),
     ];
-    // Consultations
     const CONS_COL = [2638, 1500, 2000, 3500];
     const consRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Groupe', CONS_COL[0]), hCell('Sessions', CONS_COL[1], true), hCell('Participants', CONS_COL[2], true), hCell('Méthode', CONS_COL[3])] }),
-        ...(genderAssessment.consultations || []).map((c, i) => new docx_1.TableRow({ children: [
-                dCell(c.group, CONS_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(String(c.sessions), CONS_COL[1], { shade: i % 2 === 1, center: true }),
-                dCell(String(c.participants), CONS_COL[2], { shade: i % 2 === 1, center: true }),
-                dCell(c.method, CONS_COL[3], { shade: i % 2 === 1 }),
-            ] })),
+        ...(genderAssessment.consultations || []).map((c, i) => new docx_1.TableRow({ children: [dCell(c.group, CONS_COL[0], { shade: i % 2 === 1, bold: true }), dCell(String(c.sessions), CONS_COL[1], { shade: i % 2 === 1, center: true }), dCell(String(c.participants), CONS_COL[2], { shade: i % 2 === 1, center: true }), dCell(c.method, CONS_COL[3], { shade: i % 2 === 1 })] })),
     ];
-    // Recommandations
     const REC_COL = [3300, 1300, 1500, 1838, 1700];
     const recRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Recommandation', REC_COL[0]), hCell('Priorité', REC_COL[1], true), hCell('Portée', REC_COL[2], true), hCell('Responsable', REC_COL[3]), hCell('Échéance', REC_COL[4], true)] }),
-        ...(genderAssessment.recommendations || []).map((r, i) => new docx_1.TableRow({ children: [
-                dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }),
-                dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }),
-                dCell(r.scope, REC_COL[2], { shade: i % 2 === 1, center: true }),
-                dCell(r.responsible, REC_COL[3], { shade: i % 2 === 1 }),
-                dCell(r.deadline, REC_COL[4], { shade: i % 2 === 1, center: true }),
-            ] })),
+        ...(genderAssessment.recommendations || []).map((r, i) => new docx_1.TableRow({ children: [dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }), dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }), dCell(r.scope, REC_COL[2], { shade: i % 2 === 1, center: true }), dCell(r.responsible, REC_COL[3], { shade: i % 2 === 1 }), dCell(r.deadline, REC_COL[4], { shade: i % 2 === 1, center: true })] })),
     ];
     return [
         ...sectionTitle('04', 'Évaluation Genre'),
@@ -565,53 +395,32 @@ function buildGenderAssessment(data) {
         pageBreak(),
     ];
 }
-// ─── 5. Mécanisme de plainte ─────────────────────────────────────────────────
 function buildComplaintMechanism(data) {
     const { complaintMechanism } = data;
-    // Base documentaire
     const DOC_COL = [2638, 3500, 3500];
     const docRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Document', DOC_COL[0]), hCell('Constat', DOC_COL[1]), hCell('Évaluation', DOC_COL[2])] }),
-        ...Object.entries(complaintMechanism.documentaryBasis || {}).map(([k, v], i) => new docx_1.TableRow({ children: [
-                dCell(k, DOC_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(v.finding, DOC_COL[1], { shade: i % 2 === 1 }),
-                dCell(v.evaluation, DOC_COL[2], { shade: i % 2 === 1 }),
-            ] })),
+        ...Object.entries(complaintMechanism.documentaryBasis || {}).map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, DOC_COL[0], { shade: i % 2 === 1, bold: true }), dCell(v.finding, DOC_COL[1], { shade: i % 2 === 1 }), dCell(v.evaluation, DOC_COL[2], { shade: i % 2 === 1 })] })),
     ];
-    // Critères clés
     const CRIT_COL = [3819, 5819];
     const critRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', CRIT_COL[0]), hCell('Évaluation', CRIT_COL[1])] }),
-        ...Object.entries(complaintMechanism.keyCriteria || {}).map(([k, v], i) => new docx_1.TableRow({ children: [
-                dCell(k, CRIT_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(v.evaluation, CRIT_COL[1], { shade: i % 2 === 1 }),
-            ] })),
+        ...Object.entries(complaintMechanism.keyCriteria || {}).map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, CRIT_COL[0], { shade: i % 2 === 1, bold: true }), dCell(v.evaluation, CRIT_COL[1], { shade: i % 2 === 1 })] })),
     ];
-    // Faiblesses
     const WEAK_COL = [3400, 3638, 2600];
+    const sevColor = { faible: '1A7A4A', modérée: 'C07000', élevée: 'C0392B', critique: '8B0000' };
     const weakRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Déficience', WEAK_COL[0]), hCell('Conséquence', WEAK_COL[1]), hCell('Sévérité', WEAK_COL[2], true)] }),
         ...(complaintMechanism.weaknesses || []).map((w, i) => {
-            const sevColor = { faible: '1A7A4A', modérée: 'C07000', élevée: 'C0392B', critique: '8B0000' };
             const sev = (w.severity || '').toLowerCase();
             const sColor = Object.keys(sevColor).find(k => sev.includes(k));
-            return new docx_1.TableRow({ children: [
-                    dCell(w.deficiency, WEAK_COL[0], { shade: i % 2 === 1 }),
-                    dCell(w.consequence, WEAK_COL[1], { shade: i % 2 === 1 }),
-                    dCell(w.severity, WEAK_COL[2], { shade: i % 2 === 1, center: true, bold: true, color: sColor ? sevColor[sColor] : C.text }),
-                ] });
+            return new docx_1.TableRow({ children: [dCell(w.deficiency, WEAK_COL[0], { shade: i % 2 === 1 }), dCell(w.consequence, WEAK_COL[1], { shade: i % 2 === 1 }), dCell(w.severity, WEAK_COL[2], { shade: i % 2 === 1, center: true, bold: true, color: sColor ? sevColor[sColor] : C.text })] });
         }),
     ];
-    // Recommandations
     const REC_COL = [3638, 1500, 2300, 2200];
     const recRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Recommandation', REC_COL[0]), hCell('Priorité', REC_COL[1], true), hCell('Responsable', REC_COL[2]), hCell('Échéance', REC_COL[3], true)] }),
-        ...(complaintMechanism.recommendations || []).map((r, i) => new docx_1.TableRow({ children: [
-                dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }),
-                dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }),
-                dCell(r.responsible, REC_COL[2], { shade: i % 2 === 1 }),
-                dCell(r.deadline, REC_COL[3], { shade: i % 2 === 1, center: true }),
-            ] })),
+        ...(complaintMechanism.recommendations || []).map((r, i) => new docx_1.TableRow({ children: [dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }), dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }), dCell(r.responsible, REC_COL[2], { shade: i % 2 === 1 }), dCell(r.deadline, REC_COL[3], { shade: i % 2 === 1, center: true })] })),
     ];
     return [
         ...sectionTitle('05', 'Mécanisme de Plainte'),
@@ -622,11 +431,7 @@ function buildComplaintMechanism(data) {
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: CRIT_COL, rows: critRows }),
         spacer(200),
         ...subTitle('Points forts identifiés'),
-        ...(complaintMechanism.strengths || []).map(s => new docx_1.Paragraph({
-            numbering: { reference: 'bullets', level: 0 },
-            spacing: { after: 60 },
-            children: [new docx_1.TextRun({ text: s, size: 20, font: 'Calibri', color: C.text })],
-        })),
+        ...(complaintMechanism.strengths || []).map(s => new docx_1.Paragraph({ numbering: { reference: 'bullets', level: 0 }, spacing: { after: 60 }, children: [new docx_1.TextRun({ text: s, size: 20, font: 'Calibri', color: C.text })] })),
         spacer(200),
         ...subTitle('Faiblesses et risques'),
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: WEAK_COL, rows: weakRows }),
@@ -635,88 +440,35 @@ function buildComplaintMechanism(data) {
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: REC_COL, rows: recRows }),
         spacer(240),
         ...subTitle('Conclusion générale'),
-        new docx_1.Paragraph({
-            spacing: { after: 160 },
-            border: {
-                left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 },
-            },
-            indent: { left: 280 },
-            children: [
-                new docx_1.TextRun({
-                    text: complaintMechanism.globalConclusion || '—',
-                    size: 20,
-                    color: C.text,
-                    font: 'Calibri',
-                    italics: true,
-                }),
-            ],
-        }),
+        new docx_1.Paragraph({ spacing: { after: 160 }, border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } }, indent: { left: 280 }, children: [new docx_1.TextRun({ text: complaintMechanism.globalConclusion || '—', size: 20, color: C.text, font: 'Calibri', italics: true })] }),
     ];
 }
-// ─── Export principal ────────────────────────────────────────────────────────
 function generateFormDataWordDocument(data) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
-        const generatedAt = new Date().toLocaleDateString('fr-FR', {
-            day: '2-digit', month: 'long', year: 'numeric',
-        });
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
         const projectName = ((_a = data.projectInfo) === null || _a === void 0 ? void 0 : _a.projectName) || 'Projet';
         const doc = new docx_1.Document({
             numbering: {
                 config: [{
                         reference: 'bullets',
-                        levels: [{
-                                level: 0,
-                                format: docx_1.LevelFormat.BULLET,
-                                text: '•',
-                                alignment: docx_1.AlignmentType.LEFT,
-                                style: { paragraph: { indent: { left: 720, hanging: 360 } } },
-                            }],
+                        levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
                     }],
             },
             styles: {
-                default: {
-                    document: { run: { font: 'Calibri', size: 20, color: C.text } },
-                },
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
                 paragraphStyles: [
-                    {
-                        id: 'Heading1',
-                        name: 'Heading 1',
-                        basedOn: 'Normal',
-                        next: 'Normal',
-                        quickFormat: true,
-                        run: { size: 30, bold: true, font: 'Calibri', color: C.primary },
-                        paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 },
-                    },
-                    {
-                        id: 'Heading2',
-                        name: 'Heading 2',
-                        basedOn: 'Normal',
-                        next: 'Normal',
-                        quickFormat: true,
-                        run: { size: 22, bold: true, font: 'Calibri', color: C.secondary },
-                        paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 },
-                    },
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
                 ],
             },
             sections: [
                 {
-                    properties: {
-                        page: {
-                            size: { width: PAGE.width, height: PAGE.height },
-                            margin: PAGE.margin,
-                        },
-                    },
-                    // Page de garde sans en-tête/pied
-                    children: buildCoverPage(data),
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildCoverPage(data)
                 },
                 {
-                    properties: {
-                        page: {
-                            size: { width: PAGE.width, height: PAGE.height },
-                            margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }), // marge haute pour l'en-tête
-                        },
-                    },
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
                     headers: { default: buildHeader(projectName) },
                     footers: { default: buildFooter(generatedAt) },
                     children: [
@@ -725,6 +477,449 @@ function generateFormDataWordDocument(data) {
                         ...buildStakeholderInterview(data),
                         ...buildGenderAssessment(data),
                         ...buildComplaintMechanism(data),
+                    ],
+                },
+            ],
+        });
+        return docx_1.Packer.toBuffer(doc);
+    });
+}
+// =============================================================================
+// 2. EXPORT CHECKLIST AUDIT
+// =============================================================================
+function buildAuditCoverPage(data) {
+    return [
+        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'CHECKLIST D\'AUDIT', bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'ENVIRONNEMENTAL ET SOCIAL', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
+        new docx_1.Table({
+            width: { size: 7000, type: docx_1.WidthType.DXA },
+            columnWidths: [2800, 4200],
+            rows: [
+                ['Sous-projet', data.subprojet],
+                ['Auditeurs', data.auditeurs],
+                ['Date', new Date(data.date).toLocaleDateString('fr-FR')],
+            ].map(([label, val], i) => new docx_1.TableRow({
+                children: [
+                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                ],
+            })),
+        }),
+        pageBreak(),
+    ];
+}
+function buildCritereTable(items) {
+    if (!items || items.length === 0)
+        return [];
+    const COL = [800, 3000, 2000, 2000, 1838];
+    const conformiteColor = (c) => {
+        if (c === 'O')
+            return C.green;
+        if (c === 'N')
+            return C.red;
+        if (c === 'P')
+            return C.yellow;
+        return C.muted;
+    };
+    const conformiteLabel = (c) => {
+        if (c === 'O')
+            return 'Conforme';
+        if (c === 'N')
+            return 'Non conforme';
+        if (c === 'P')
+            return 'Partiel';
+        return 'S.O.';
+    };
+    const rows = [
+        new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Critère', COL[1]), hCell('Sources/Méthode', COL[2]), hCell('Observations', COL[3]), hCell('Conformité', COL[4], true)] }),
+        ...items.map((item, i) => new docx_1.TableRow({
+            children: [
+                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
+                dCell(item.critere, COL[1], { shade: i % 2 === 1 }),
+                dCell(item.sourcesMethode, COL[2], { shade: i % 2 === 1 }),
+                dCell(item.observations, COL[3], { shade: i % 2 === 1 }),
+                dCell(conformiteLabel(item.conformite), COL[4], { shade: i % 2 === 1, center: true, bold: true, color: conformiteColor(item.conformite) }),
+            ],
+        })),
+    ];
+    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
+}
+function buildDocumentAuditTable(items) {
+    if (!items || items.length === 0)
+        return [];
+    const COL = [800, 3000, 1500, 4338];
+    const disponibleColor = (d) => {
+        if (d === 'O')
+            return C.green;
+        if (d === 'N')
+            return C.red;
+        if (d === 'P')
+            return C.yellow;
+        return C.muted;
+    };
+    const disponibleLabel = (d) => {
+        if (d === 'O')
+            return 'Disponible';
+        if (d === 'N')
+            return 'Non disponible';
+        if (d === 'P')
+            return 'Partiel';
+        return 'S.O.';
+    };
+    const rows = [
+        new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Document', COL[1]), hCell('Disponible', COL[2], true), hCell('Commentaires', COL[3])] }),
+        ...items.map((item, i) => new docx_1.TableRow({
+            children: [
+                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
+                dCell(item.document, COL[1], { shade: i % 2 === 1 }),
+                dCell(disponibleLabel(item.disponible), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: disponibleColor(item.disponible) }),
+                dCell(item.commentaires || '—', COL[3], { shade: i % 2 === 1 }),
+            ],
+        })),
+    ];
+    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
+}
+function exportChecklistAuditWord(data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o;
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const doc = new docx_1.Document({
+            sections: [
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildAuditCoverPage(data)
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader('CHECKLIST D\'AUDIT') },
+                    footers: { default: buildFooter(generatedAt) },
+                    children: [
+                        ...sectionTitle('01', 'Cadre juridique, administratif et foncier'),
+                        ...buildCritereTable(data.section1_cadreJuridique),
+                        ...sectionTitle('02', 'Conception, structure et sécurité des infrastructures'),
+                        ...subTitle('Stabilité de la structure'),
+                        ...buildCritereTable((_a = data.section2_infraSecurite) === null || _a === void 0 ? void 0 : _a.stabiliteStructure),
+                        ...subTitle('Sécurité incendie'),
+                        ...buildCritereTable((_b = data.section2_infraSecurite) === null || _b === void 0 ? void 0 : _b.securiteIncendie),
+                        ...subTitle('Accessibilité PMR'),
+                        ...buildCritereTable((_c = data.section2_infraSecurite) === null || _c === void 0 ? void 0 : _c.accessibilitePMR),
+                        ...sectionTitle('03', 'Gestion environnementale et sociale du chantier'),
+                        ...subTitle('Gestion des déchets'),
+                        ...buildCritereTable((_d = data.section3_gestionEnvSociale) === null || _d === void 0 ? void 0 : _d.gestionDechets),
+                        ...subTitle('Nuisances et pollution'),
+                        ...buildCritereTable((_e = data.section3_gestionEnvSociale) === null || _e === void 0 ? void 0 : _e.nuisancesPollution),
+                        ...subTitle('Santé et sécurité des travailleurs'),
+                        ...buildCritereTable((_f = data.section3_gestionEnvSociale) === null || _f === void 0 ? void 0 : _f.santeSecuteTravailleurs),
+                        ...sectionTitle('04', 'Gestion sociale et parties prenantes'),
+                        ...subTitle('Relations avec les communautés'),
+                        ...buildCritereTable((_g = data.section4_gestionSociale) === null || _g === void 0 ? void 0 : _g.relationsCommunautes),
+                        ...subTitle('Mécanisme de gestion des plaintes (MGP)'),
+                        ...buildCritereTable((_h = data.section4_gestionSociale) === null || _h === void 0 ? void 0 : _h.mgp),
+                        ...sectionTitle('05', 'Analyse des risques liés au futur ERP'),
+                        ...subTitle('Sécurité / Sûreté'),
+                        ...buildCritereTable((_j = data.section5_risquesERP) === null || _j === void 0 ? void 0 : _j.securiteSurete),
+                        ...subTitle('Hygiène et environnement'),
+                        ...buildCritereTable((_k = data.section5_risquesERP) === null || _k === void 0 ? void 0 : _k.hygieneEnvironnement),
+                        ...sectionTitle('06', 'Bilan documentaire'),
+                        ...buildDocumentAuditTable(data.section6_bilanDocumentaire),
+                        ...sectionTitle('07', 'Synthèse'),
+                        kvParagraph('Nombre de non-conformités majeures', String(((_l = data.synthese) === null || _l === void 0 ? void 0 : _l.nombreNonConformitesMajeures) || 0)),
+                        kvParagraph('Domaines critiques', ((_m = data.synthese) === null || _m === void 0 ? void 0 : _m.domainesCritiques) || '—'),
+                        kvParagraph('Signature de l\'auditeur', ((_o = data.synthese) === null || _o === void 0 ? void 0 : _o.signatureAuditeur) || '—'),
+                        spacer(240),
+                    ],
+                },
+            ],
+        });
+        return docx_1.Packer.toBuffer(doc);
+    });
+}
+// =============================================================================
+// 3. EXPORT CHECKLIST CONDUCTEUR TRAVAUX
+// =============================================================================
+function buildConducteurCoverPage(data) {
+    return [
+        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'CHECKLIST CONDUCTEUR', bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'DES TRAVAUX', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
+        new docx_1.Table({
+            width: { size: 7000, type: docx_1.WidthType.DXA },
+            columnWidths: [2800, 4200],
+            rows: [
+                ['Sous-projet', data.subprojet],
+                ['Auditeur', data.auditeur],
+                ['Entreprise', data.entreprise],
+                ['Personne rencontrée', data.personneRencontree],
+                ['Fonction', data.fonction],
+                ['Date', new Date(data.date).toLocaleDateString('fr-FR')],
+            ].map(([label, val], i) => new docx_1.TableRow({
+                children: [
+                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                ],
+            })),
+        }),
+        pageBreak(),
+    ];
+}
+function buildQuestionTableConducteur(items) {
+    if (!items || items.length === 0)
+        return [];
+    const COL = [600, 3500, 1000, 1800, 2738];
+    const reponseColor = (r) => {
+        if (r === 'oui')
+            return C.green;
+        if (r === 'non')
+            return C.red;
+        if (r === 'partiellement')
+            return C.yellow;
+        if (r === 'nsp')
+            return C.secondary;
+        return C.muted;
+    };
+    const reponseLabel = (r) => {
+        if (r === 'oui')
+            return 'Oui';
+        if (r === 'non')
+            return 'Non';
+        if (r === 'partiellement')
+            return 'Partiel';
+        if (r === 'nsp')
+            return 'NSP';
+        return 'S.O.';
+    };
+    const rows = [
+        new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Question', COL[1]), hCell('Réponse', COL[2], true), hCell('Réponse détaillée', COL[3]), hCell('Observations', COL[4])] }),
+        ...items.map((item, i) => new docx_1.TableRow({
+            children: [
+                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
+                dCell(item.question, COL[1], { shade: i % 2 === 1 }),
+                dCell(reponseLabel(item.reponseBooleenne), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: reponseColor(item.reponseBooleenne) }),
+                dCell(item.reponse || '—', COL[3], { shade: i % 2 === 1 }),
+                dCell(item.observations || '—', COL[4], { shade: i % 2 === 1 }),
+            ],
+        })),
+    ];
+    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
+}
+const SECTIONS_CONDUCTEUR = [
+    { key: 'section1_infoGenerales', num: '01', title: 'Informations générales et rôle' },
+    { key: 'section2_processusInitialT1', num: '02', title: 'Processus environnemental et social initial' },
+    { key: 'section3_installationT2', num: '03', title: 'Installation et organisation du chantier' },
+    { key: 'section4_recrutementT2', num: '04', title: 'Recrutement et conditions de travail' },
+    { key: 'section5_hseT2', num: '05', title: 'Santé et sécurité au travail (HSE)' },
+    { key: 'section6_gestionEnvT2', num: '06', title: 'Gestion environnementale du chantier' },
+    { key: 'section7_sensibilisationT2', num: '07', title: 'Campagnes de sensibilisation VIH/SIDA' },
+    { key: 'section8_mgpT2', num: '08', title: 'Mécanisme de gestion des plaintes (MGP)' },
+    { key: 'section9_fermetureT2', num: '09', title: 'Fermeture et repli du chantier' },
+    { key: 'section10_exploitationT3', num: '10', title: 'Exploitation actuelle et retour d\'expérience' },
+    { key: 'section11_synthese', num: '11', title: 'Synthèse et recommandations' },
+];
+function exportChecklistConducteurWord(data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const doc = new docx_1.Document({
+            sections: [
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildConducteurCoverPage(data)
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader('CHECKLIST CONDUCTEUR DES TRAVAUX') },
+                    footers: { default: buildFooter(generatedAt) },
+                    children: [
+                        ...subTitle('Informations de l\'entretien'),
+                        kvParagraph('Contact', data.contact || '—'),
+                        kvParagraph('Durée de l\'entretien', data.dureeEntretien || '—'),
+                        kvParagraph('Lieu', data.lieu || '—'),
+                        spacer(240),
+                        ...SECTIONS_CONDUCTEUR.flatMap(section => {
+                            const items = data[section.key];
+                            if (!items || items.length === 0)
+                                return [];
+                            return [...sectionTitle(section.num, section.title), ...buildQuestionTableConducteur(items)];
+                        }),
+                        ...sectionTitle('12', 'Commentaires libres'),
+                        new docx_1.Paragraph({ spacing: { after: 160 }, border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } }, indent: { left: 280 }, children: [new docx_1.TextRun({ text: data.commentairesLibres || '—', size: 20, color: C.text, font: 'Calibri', italics: true })] }),
+                        spacer(240),
+                        ...sectionTitle('13', 'Signature'),
+                        kvParagraph('Signature de l\'auditeur', data.signatureAuditeur || '—'),
+                        spacer(240),
+                    ],
+                },
+            ],
+        });
+        return docx_1.Packer.toBuffer(doc);
+    });
+}
+// =============================================================================
+// 4. EXPORT GUIDE D'ENTRETIEN
+// =============================================================================
+// =============================================================================
+// 4. EXPORT GUIDE D'ENTRETIEN (Version corrigée selon votre interface)
+// =============================================================================
+function buildGuideCoverPage(data) {
+    const guideLabels = {
+        autorites_locales: 'Autorités Locales',
+        riverains_communaute: 'Riverains / Communauté',
+        travailleurs_chantier: 'Travailleurs du Chantier',
+        maitrise_ouvrage_entreprise: 'Maîtrise d\'Ouvrage / Entreprise',
+        direction_cfpt: 'Direction du CFPT'
+    };
+    const typeEntretienLabel = (type) => {
+        if (type === 'individuel')
+            return 'Individuel';
+        if (type === 'focus_group')
+            return 'Focus Group';
+        return '—';
+    };
+    const typeContratLabel = (type) => {
+        if (type === 'cdd')
+            return 'CDD';
+        if (type === 'journalier')
+            return 'Journalier';
+        if (type === 'interimaire')
+            return 'Intérimaire';
+        return '—';
+    };
+    const rows = [
+        ['Sous-projet', data.subprojet],
+        ['Type de guide', guideLabels[data.guideType] || data.guideType],
+        ['Nom de la personne', data.generalInfo.nom],
+        ['Fonction', data.generalInfo.fonction],
+        ['Contact', data.generalInfo.contact || '—'],
+        ['Date', new Date(data.generalInfo.date).toLocaleDateString('fr-FR')],
+        ['Lieu', data.generalInfo.lieu],
+    ];
+    // Ajouter les champs optionnels s'ils existent
+    if (data.generalInfo.typeEntretien) {
+        rows.push(['Type d\'entretien', typeEntretienLabel(data.generalInfo.typeEntretien)]);
+    }
+    if (data.generalInfo.employeur) {
+        rows.push(['Employeur', data.generalInfo.employeur]);
+    }
+    if (data.generalInfo.typeContrat) {
+        rows.push(['Type de contrat', typeContratLabel(data.generalInfo.typeContrat)]);
+    }
+    return [
+        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'GUIDE D\'ENTRETIEN', bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'PARTIES PRENANTES', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
+        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
+        new docx_1.Table({
+            width: { size: 7000, type: docx_1.WidthType.DXA },
+            columnWidths: [2800, 4200],
+            rows: rows.map(([label, val], i) => new docx_1.TableRow({
+                children: [
+                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                ],
+            })),
+        }),
+        pageBreak(),
+    ];
+}
+// services/words.service.ts
+function buildThemeTable(theme, title, showNuisances = false) {
+    if (!theme || !theme.questions || theme.questions.length === 0) {
+        return [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: `Aucune donnée pour ${title}`, size: 20, color: C.muted, font: 'Calibri', italics: true })] }), spacer(160)];
+    }
+    // Ajuster les colonnes si on affiche les nuisances
+    const COL = showNuisances ? [600, 3200, 2000, 2000, 1838] : [600, 4000, 2500, 2538];
+    const headers = showNuisances
+        ? ['N°', 'Question', 'Réponse', 'Nuisances observées', 'Notes']
+        : ['N°', 'Question', 'Réponse', 'Notes'];
+    const rows = [
+        new docx_1.TableRow({ tableHeader: true, children: headers.map((h, i) => hCell(h, COL[i], i === 0 || i === 2)) }),
+        ...theme.questions.map((q, i) => {
+            const shade = i % 2 === 1;
+            // Récupérer les notes/observations
+            const notes = q.observations || q.notes || '—';
+            // Pour le thème 2, récupérer les nuisances depuis la question elle-même
+            let nuisancesText = '—';
+            if (showNuisances && q.nuisancesObservees) {
+                const nuisances = q.nuisancesObservees;
+                const nuisancesList = [
+                    nuisances.poussiere ? '✓ Poussière' : '',
+                    nuisances.bruit ? '✓ Bruit' : '',
+                    nuisances.circulation ? '✓ Circulation' : '',
+                    nuisances.odeurs ? '✓ Odeurs' : '',
+                    nuisances.dechets ? '✓ Déchets' : '',
+                    nuisances.vibrations ? '✓ Vibrations' : '',
+                    nuisances.fumee ? '✓ Fumée' : '',
+                    nuisances.eclairage ? '✓ Éclairage' : ''
+                ].filter(t => t).join(', ');
+                nuisancesText = nuisancesList || 'Aucune nuisance signalée';
+            }
+            if (showNuisances) {
+                return new docx_1.TableRow({
+                    children: [
+                        dCell(q.questionId, COL[0], { shade, center: true }),
+                        dCell(q.question, COL[1], { shade }),
+                        dCell(q.reponse || '—', COL[2], { shade }),
+                        dCell(nuisancesText, COL[3], { shade }),
+                        dCell(notes, COL[4], { shade }), // ← Affiche les notes ici
+                    ],
+                });
+            }
+            return new docx_1.TableRow({
+                children: [
+                    dCell(q.questionId, COL[0], { shade, center: true }),
+                    dCell(q.question, COL[1], { shade }),
+                    dCell(q.reponse || '—', COL[2], { shade }),
+                    dCell(notes, COL[3], { shade }), // ← Affiche les notes ici
+                ],
+            });
+        }),
+    ];
+    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
+}
+function exportGuideEntretienWord(data) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        // Déterminer quel thème nécessite l'affichage des nuisances (guide riverains)
+        const isRiverainGuide = data.guideType === 'riverains_communaute';
+        const doc = new docx_1.Document({
+            sections: [
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildGuideCoverPage(data),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader('GUIDE D\'ENTRETIEN') },
+                    footers: { default: buildFooter(generatedAt) },
+                    children: [
+                        // THÈME 1
+                        ...buildThemeTable(data.theme1, 'Thème 1 : ' + (data.guideType === 'autorites_locales' ? 'Statut foncier' :
+                            'Information et perception du projet'), false),
+                        // THÈME 2
+                        ...buildThemeTable(data.theme2, 'Thème 2 : ' + (data.guideType === 'autorites_locales' ? 'Perception du projet' :
+                            data.guideType === 'riverains_communaute' ? 'Nuisances des travaux' :
+                                data.guideType === 'travailleurs_chantier' ? 'EPI et santé sécurité' :
+                                    data.guideType === 'maitrise_ouvrage_entreprise' ? 'Gestion environnementale et sociale' :
+                                        'Accessibilité et sécurité de l\'ERP'), isRiverainGuide),
+                        // THÈME 3
+                        ...buildThemeTable(data.theme3, 'Thème 3 : ' + (data.guideType === 'autorites_locales' || data.guideType === 'riverains_communaute' ? 'Gestion des plaintes' :
+                            data.guideType === 'travailleurs_chantier' ? 'Conditions d\'emploi et MGP' :
+                                data.guideType === 'maitrise_ouvrage_entreprise' ? 'Gestion des travailleurs' :
+                                    'Gestion quotidienne du CFPT'), false),
+                        // THÈME 4 (optionnel)
+                        ...(data.theme4 ? buildThemeTable(data.theme4, 'Thème 4 : ' + (data.guideType === 'riverains_communaute' ? 'Attentes pour le futur' :
+                            'Relations riverains et MGP'), false) : []),
+                        // Notes de l'auditeur
+                        ...sectionTitle('05', 'Notes de l\'auditeur'),
+                        new docx_1.Paragraph({
+                            spacing: { after: 160 },
+                            border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } },
+                            indent: { left: 280 },
+                            children: [new docx_1.TextRun({ text: data.notesAuditeur || '—', size: 20, color: C.text, font: 'Calibri', italics: true })]
+                        }),
+                        spacer(240),
                     ],
                 },
             ],

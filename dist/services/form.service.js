@@ -138,41 +138,120 @@ class FormService {
     getFormStats() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const stats = yield FormData_model_1.FormData.aggregate([
-                    {
-                        $group: {
-                            _id: '$status',
-                            count: { $sum: 1 },
-                            latest: { $max: '$createdAt' }
-                        }
-                    },
-                    {
-                        $group: {
-                            _id: null,
-                            total: { $sum: '$count' },
-                            byStatus: {
-                                $push: {
-                                    status: '$_id',
-                                    count: '$count',
-                                    latest: '$latest'
-                                }
+                // Récupérer les comptages de chaque collection séparément
+                const [apesStats, checklistAuditStats, checklistConducteurStats, guideEntretienStats] = yield Promise.all([
+                    FormData_model_1.FormData.aggregate([
+                        {
+                            $group: {
+                                _id: '$status',
+                                count: { $sum: 1 },
+                                latest: { $max: '$createdAt' }
                             }
                         }
-                    },
-                    {
-                        $project: {
-                            _id: 0,
-                            total: 1,
-                            byStatus: 1
+                    ]),
+                    ChecklistAudit_model_1.ChecklistAudit.aggregate([
+                        {
+                            $group: {
+                                _id: '$status',
+                                count: { $sum: 1 },
+                                latest: { $max: '$createdAt' }
+                            }
                         }
-                    }
+                    ]),
+                    ChecklistAudit_model_1.ChecklistConducteurTravaux.aggregate([
+                        {
+                            $group: {
+                                _id: '$status',
+                                count: { $sum: 1 },
+                                latest: { $max: '$createdAt' }
+                            }
+                        }
+                    ]),
+                    GuideEntretien_model_1.GuideEntretien.aggregate([
+                        {
+                            $group: {
+                                _id: '$status',
+                                count: { $sum: 1 },
+                                latest: { $max: '$createdAt' }
+                            }
+                        }
+                    ])
                 ]);
-                return stats[0] || { total: 0, byStatus: [] };
+                // Structure des statistiques par type
+                const byFormType = {
+                    apes: this.formatStats(apesStats),
+                    checklistAudit: this.formatStats(checklistAuditStats),
+                    checklistConducteur: this.formatStats(checklistConducteurStats),
+                    guideEntretien: this.formatStats(guideEntretienStats)
+                };
+                // Calcul des totaux globaux
+                const totalApres = apesStats.reduce((sum, s) => sum + s.count, 0);
+                const totalChecklistAudit = checklistAuditStats.reduce((sum, s) => sum + s.count, 0);
+                const totalChecklistConducteur = checklistConducteurStats.reduce((sum, s) => sum + s.count, 0);
+                const totalGuideEntretien = guideEntretienStats.reduce((sum, s) => sum + s.count, 0);
+                const totalAll = totalApres + totalChecklistAudit + totalChecklistConducteur + totalGuideEntretien;
+                // Statistiques globales par statut
+                const globalByStatus = this.mergeStatsByStatus([
+                    apesStats,
+                    checklistAuditStats,
+                    checklistConducteurStats,
+                    guideEntretienStats
+                ]);
+                return {
+                    total: totalAll,
+                    byFormType,
+                    byStatus: globalByStatus,
+                    details: {
+                        apes: { total: totalApres, stats: byFormType.apes },
+                        checklistAudit: { total: totalChecklistAudit, stats: byFormType.checklistAudit },
+                        checklistConducteur: { total: totalChecklistConducteur, stats: byFormType.checklistConducteur },
+                        guideEntretien: { total: totalGuideEntretien, stats: byFormType.guideEntretien }
+                    }
+                };
             }
             catch (error) {
                 throw new Error(`Erreur lors du calcul des statistiques: ${error}`);
             }
         });
+    }
+    // Méthode utilitaire pour formater les stats d'un type
+    formatStats(stats) {
+        return stats.map(stat => ({
+            status: stat._id,
+            count: stat.count,
+            latest: stat.latest
+        }));
+    }
+    // Méthode pour fusionner les statistiques par statut
+    mergeStatsByStatus(allStatsArrays) {
+        const statusMap = new Map();
+        const statusOrder = ['draft', 'submitted', 'reviewed', 'approved', 'archived'];
+        const statusLabels = {
+            draft: 'Brouillon',
+            submitted: 'Soumis',
+            reviewed: 'Révisé',
+            approved: 'Approuvé',
+            archived: 'Archivé'
+        };
+        allStatsArrays.forEach(statsArray => {
+            statsArray.forEach(stat => {
+                const status = stat._id;
+                if (statusMap.has(status)) {
+                    statusMap.set(status, statusMap.get(status) + stat.count);
+                }
+                else {
+                    statusMap.set(status, stat.count);
+                }
+            });
+        });
+        // Retourner les stats triées par ordre de statut
+        return statusOrder
+            .filter(status => statusMap.has(status))
+            .map(status => ({
+            status,
+            label: statusLabels[status] || status,
+            count: statusMap.get(status)
+        }));
     }
     // ─── GUIDE D'ENTRETIEN ───────────────────────────────────────
     createGuideEntretien(data) {

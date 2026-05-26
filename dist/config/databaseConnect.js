@@ -16,15 +16,27 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const DATABASE_URL = process.env.DATABASE_URL;
     const DATABASE_NAME = process.env.DATABASE_NAME;
     try {
-        yield mongoose_1.default.connect(DATABASE_URL, { dbName: DATABASE_NAME });
-        console.log("connecter a la DB");
+        yield mongoose_1.default.connect(DATABASE_URL, {
+            dbName: DATABASE_NAME,
+            family: 4, // Force IPv4
+            serverSelectionTimeoutMS: 10000, // Timeout 10 secondes
+            socketTimeoutMS: 45000,
+            connectTimeoutMS: 10000,
+            tls: true, // FORCE SSL/TLS (essentiel!)
+            retryWrites: true,
+            retryReads: true
+        });
+        console.log("✅ Connecté avec succès à MongoDB Atlas");
+        console.log("📊 Base de données:", (_a = mongoose_1.default.connection.db) === null || _a === void 0 ? void 0 : _a.databaseName);
     }
     catch (error) {
-        console.log("erreur de connection ", error);
-        process.exit(1);
+        console.log("❌ Erreur de connexion à MongoDB:", error);
+        // Ne pas faire process.exit(1) ici, laissez l'application réessayer
+        throw error;
     }
 });
 exports.default = connectDB;
