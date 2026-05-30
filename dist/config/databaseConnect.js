@@ -16,7 +16,6 @@ const mongoose_1 = __importDefault(require("mongoose"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
     const DATABASE_URL = process.env.DATABASE_URL;
     const DATABASE_NAME = process.env.DATABASE_NAME;
     try {
@@ -30,8 +29,6 @@ const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
             retryWrites: true,
             retryReads: true
         });
-        console.log("✅ Connecté avec succès à MongoDB Atlas");
-        console.log("📊 Base de données:", (_a = mongoose_1.default.connection.db) === null || _a === void 0 ? void 0 : _a.databaseName);
     }
     catch (error) {
         console.log("❌ Erreur de connexion à MongoDB:", error);

@@ -19,8 +19,6 @@ const connectDB = async () => {
             retryReads: true
         });
         
-        console.log("✅ Connecté avec succès à MongoDB Atlas");
-        console.log("📊 Base de données:", mongoose.connection.db?.databaseName);
         
     } catch (error) {
         console.log("❌ Erreur de connexion à MongoDB:", error);

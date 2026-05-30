@@ -1,1 +1,1 @@
-{"version":3,"file":"databaseConnect.d.ts","sourceRoot":"","sources":["../../src/config/databaseConnect.ts"],"names":[],"mappings":"AAKA,QAAA,MAAM,SAAS,qBAwBd,CAAA;AAED,eAAe,SAAS,CAAC"}
+{"version":3,"file":"databaseConnect.d.ts","sourceRoot":"","sources":["../../src/config/databaseConnect.ts"],"names":[],"mappings":"AAKA,QAAA,MAAM,SAAS,qBAsBd,CAAA;AAED,eAAe,SAAS,CAAC"}
