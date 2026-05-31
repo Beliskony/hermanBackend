@@ -1,148 +1,144 @@
-import { Poll, IPoll } from "../interfaces/IPoll";
-import { Event } from "../interfaces/IEvent";
-import { Types } from "mongoose";
+// ─────────────────────────────────────────────────────────────────────────────
+//  poll.service.ts  —  MySQL version
+//
+//  Différences vs Mongoose :
+//  • eventName (string libre) → event_id (CHAR(16) FK vers events)
+//    Le frontend passe désormais un eventId, pas un nom en clair.
+//  • L'agrégation $lookup → simple JOIN MySQL
+//  • Pas de doublon-check par nom : géré côté events (unique event_name)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { RowDataPacket, ResultSetHeader } from 'mysql2';  // ← AJOUTER CET IMPORT
+import { pool }  from '../config/databaseConnect';
+import { newId } from '../utils/id';
+
+// CORRECTION : Étendre RowDataPacket
+interface PollRow extends RowDataPacket {
+  id:           string;
+  event_id:     string;
+  name:         string;
+  phone:        string;
+  rating:       number;
+  feedback:     string;
+  submitted_at: Date;
+  event_name?:  string;  // Optionnel car vient du JOIN
+}
+
+// CORRECTION : Étendre RowDataPacket
+interface EventWithStats extends RowDataPacket {
+  event_id:     string;
+  event_name:   string;
+  total_responses: number;   // ← pas nb_reponses
+  avg_rating:    number | null;  // ← pas note_moyenne
+  min_rating:    number | null;  // ← pas note_min
+  max_rating:    number | null; 
+}
 
 export class PollService {
-  
-  // Admin: Créer un nouveau sondage (juste un nouveau nom)
-  async createNewPoll(eventName: string): Promise<string> {
-    // Validation simple
+
+  // ── CRÉER UN ÉVÉNEMENT (ex-createNewPoll) ─────────────────────────────────
+  async createNewPoll(eventName: string): Promise<{ id: string; eventName: string }> {
     if (!eventName || typeof eventName !== 'string') {
-      throw new Error("Le nom doit être une chaîne de caractères");
+      throw new Error('Le nom doit être une chaîne de caractères');
     }
-    
+
     const trimmedName = eventName.trim();
-    
-    // Option: Vérifier si le nom existe déjà (si vous voulez éviter les doublons)
-    
-    const existing = await Poll.findOne({ eventName: trimmedName });
-    if (existing) {
+
+    // CORRECTION : Utiliser RowDataPacket[]
+    const [existing] = await pool.query<RowDataPacket[]>(
+      'SELECT id FROM events WHERE event_name = ? LIMIT 1',
+      [trimmedName]
+    );
+    if (existing.length > 0) {
       throw new Error(`Un sondage "${trimmedName}" existe déjà`);
     }
-    
-    // Rien à sauvegarder ! Juste retourner le nom
-    console.log(`Nouveau sondage créé: "${trimmedName}"`);
-    
-    return trimmedName;
+
+    const id = newId();
+    await pool.query('CALL sp_create_event(?,?)', [id, trimmedName]);
+
+    return { id, eventName: trimmedName };
   }
-  
-  // Utilisateur: Soumettre un vote POUR UN ÉVÉNEMENT SPÉCIFIQUE
-  async createVote(eventName: string, voteData: Omit<IPoll, 'eventName' | 'submittedAt'>) {
-    // Validation
-    if (!eventName) {
-      throw new Error("Nom d'événement requis");
-    }
-    
-    const poll = new Poll({
-      ...voteData,
-      eventName, // Le nom d'événement est fourni par l'utilisateur
-      submittedAt: new Date(),
-    });
-    
-    await poll.save();
-    return poll;
+
+  // ── SOUMETTRE UN VOTE ─────────────────────────────────────────────────────
+  async createVote(eventId: string, voteData: {
+    name:     string;
+    phone:    string;
+    rating:   number;
+    feedback: string;
+  }) {
+    if (!eventId) throw new Error("ID d'événement requis");
+
+    const id = newId();
+    await pool.query(
+      'CALL sp_create_poll(?,?,?,?,?,?)',
+      [id, eventId, voteData.name, voteData.phone, voteData.rating, voteData.feedback]
+    );
+
+    return { id, eventId, ...voteData, submittedAt: new Date() };
   }
-  
-  // Récupérer tous les sondages (tous événements)
+
+  // ── TOUS LES VOTES ────────────────────────────────────────────────────────
   async getAll() {
-    return Poll.find().sort({ submittedAt: -1 });
+    const [rows] = await pool.query<PollRow[]>(
+      `SELECT p.*, e.event_name
+       FROM polls p
+       JOIN events e ON e.id = p.event_id
+       ORDER BY p.submitted_at DESC`
+    );
+    return rows;
   }
-  
-  // Récupérer les votes d'un événement spécifique
-  async getByEventName(eventName: string) {
-    return Poll.find({ eventName }).sort({ submittedAt: -1 });
+
+  // ── VOTES D'UN ÉVÉNEMENT ──────────────────────────────────────────────────
+  async getByEventId(eventId: string) {
+    const [rows] = await pool.query<PollRow[]>(
+      `SELECT p.*, e.event_name
+       FROM polls p
+       JOIN events e ON e.id = p.event_id
+       WHERE p.event_id = ?
+       ORDER BY p.submitted_at DESC`,
+      [eventId]
+    );
+    return rows;
   }
-  
-  // Liste de tous les événements (noms uniques)
-  // Liste de tous les événements (noms uniques) avec leurs statistiques
-async getAllEventNames() {
-  try {
-    console.log("Début de getAllEventNames...");
-    
-    // OPTION 1: Aggregation simple et testée
-    const events = await Event.aggregate([
-      {
-        $lookup: {
-          from: "polls",           // Collection Poll
-          localField: "_id",       // _id de Event
-          foreignField: "eventName", // eventName dans Poll
-          as: "votes"
-        }
-      },
-      {
-        $addFields: {
-          voteCount: { $size: "$votes" },
-          lastVote: {
-            $cond: {
-              if: { $gt: [{ $size: "$votes" }, 0] },
-              then: { $max: "$votes.submittedAt" },
-              else: null
-            }
-          }
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          name: "$EventName",      // Important: EventName avec majuscule
-          EventName: 1,
-          voteCount: 1,
-          lastVote: 1,
-          createdAt: 1,
-          updatedAt: 1
-        }
-      },
-      {
-        $sort: { 
-          lastVote: -1,
-          createdAt: -1 
-        }
-      }
-    ]);
 
-    console.log(`Nombre d'événements trouvés: ${events.length}`);
-    console.log("Événements:", JSON.stringify(events, null, 2));
+  // ── LISTE DES ÉVÉNEMENTS AVEC STATS ───────────────────────────────────────
+  // Correspond à l'ancienne getAllEventNames() — utilise la vue v_poll_stats
+  async getAllEventNames() {
+    const [rows] = await pool.query<EventWithStats[]>(
+      'SELECT * v_poll_stats_by_event ORDER BY event_id'
+    );
 
-    // Formatage pour le frontend
-    const formattedEvents = events.map(event => ({
-      _id: event._id.toString(),
-      name: event.name || event.EventName || "Sans nom",
-      voteCount: event.voteCount || 0,
-      lastVote: event.lastVote ? event.lastVote.toISOString() : null,
-      createdAt: event.createdAt ? event.createdAt.toISOString() : null,
-      updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
+    return rows.map(r => ({
+      id:          r.event_id,
+      name:        r.event_name,
+      nb_reponses: r.total_responses,
+      note_moyenne: r.avg_rating,
+      note_min:     r.min_rating,
+      note_max:     r.max_rating
     }));
-
-    console.log("Événements formatés:", formattedEvents);
-    return formattedEvents;
-
-  } catch (error) {
-    console.error("Erreur dans getAllEventNames:", error);
-    throw error;
   }
-}
-  
-  // Supprimer un vote
+
+  // ── SUPPRIMER UN VOTE ─────────────────────────────────────────────────────
   async deleteVote(id: string) {
-    if (!Types.ObjectId.isValid(id)) {
-      throw new Error("ID invalide");
-    }
-    
-    const deleted = await Poll.findByIdAndDelete(id);
-    
-    if (!deleted) {
-      throw new Error("Vote non trouvé");
-    }
-    
-    return deleted;
+    // CORRECTION : Utiliser ResultSetHeader
+    const [result] = await pool.query<ResultSetHeader>(
+      'DELETE FROM polls WHERE id = ?',
+      [id]
+    );
+
+    if (result.affectedRows === 0) throw new Error('Vote non trouvé');
+    return { deleted: true, id };
   }
-  
-  // Supprimer tous les votes d'un événement
-  async deleteEvent(eventName: string) {
-    const result = await Poll.deleteMany({ eventName });
-    return {
-      eventName,
-      deletedCount: result.deletedCount
-    };
+
+  // ── SUPPRIMER UN ÉVÉNEMENT ET TOUS SES VOTES (CASCADE) ───────────────────
+  // La FK ON DELETE CASCADE s'occupe des polls automatiquement
+  async deleteEventById(eventId: string) {
+    // CORRECTION : Utiliser ResultSetHeader
+    const [result] = await pool.query<ResultSetHeader>(
+      'DELETE FROM events WHERE id = ?',
+      [eventId]
+    );
+
+    return { eventId, deletedEvent: result.affectedRows > 0 };
   }
 }

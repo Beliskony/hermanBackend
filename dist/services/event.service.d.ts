@@ -1,40 +1,25 @@
-import { IEvent } from "../interfaces/IEvent";
-import { Types } from "mongoose";
+import { RowDataPacket } from 'mysql2';
+interface EventRow extends RowDataPacket {
+    id: string;
+    event_name: string;
+    created_at: Date;
+    updated_at: Date;
+}
 export declare class EventService {
-    createEvent(data: IEvent): Promise<import("mongoose").Document<unknown, {}, IEvent, {}, import("mongoose").DefaultSchemaOptions> & IEvent & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
+    createEvent(eventName: string): Promise<{
         id: string;
+        eventName: string;
     }>;
-    getAllEvents(): Promise<(import("mongoose").Document<unknown, {}, IEvent, {}, import("mongoose").DefaultSchemaOptions> & IEvent & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
+    getAllEvents(): Promise<EventRow[]>;
+    getLatestEvent(): Promise<EventRow>;
+    updateEvent(eventId: string, eventName: string): Promise<{
         id: string;
-    })[]>;
-    getLatestEvent(): Promise<import("mongoose").Document<unknown, {}, IEvent, {}, import("mongoose").DefaultSchemaOptions> & IEvent & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
+        eventName: string;
     }>;
-    updateEvent(eventId: string, data: Partial<IEvent>): Promise<import("mongoose").Document<unknown, {}, IEvent, {}, import("mongoose").DefaultSchemaOptions> & IEvent & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    deleteEvent(eventId: string): Promise<import("mongoose").Document<unknown, {}, IEvent, {}, import("mongoose").DefaultSchemaOptions> & IEvent & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
+    deleteEvent(eventId: string): Promise<{
+        deleted: boolean;
         id: string;
     }>;
 }
+export {};
 //# sourceMappingURL=event.service.d.ts.map

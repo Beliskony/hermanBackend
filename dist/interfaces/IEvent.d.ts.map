@@ -1,1 +1,1 @@
-{"version":3,"file":"IEvent.d.ts","sourceRoot":"","sources":["../../src/interfaces/IEvent.ts"],"names":[],"mappings":"AAEA,UAAU,MAAM;IACZ,SAAS,EAAE,MAAM,CAAC;CACrB;AAUD,eAAO,MAAM,KAAK;;;;;;eAAsC,CAAC;AACzD,YAAY,EAAE,MAAM,EAAE,CAAC"}
+{"version":3,"file":"IEvent.d.ts","sourceRoot":"","sources":["../../src/interfaces/IEvent.ts"],"names":[],"mappings":"AACA,MAAM,WAAW,MAAM;IACrB,EAAE,EAAE,MAAM,CAAC;IACX,UAAU,EAAE,MAAM,CAAC;IACnB,UAAU,EAAE,IAAI,CAAC;IACjB,UAAU,EAAE,IAAI,CAAC;CAClB;AAED,MAAM,WAAW,YAAY;IAC3B,UAAU,EAAE,MAAM,CAAC;CACpB"}

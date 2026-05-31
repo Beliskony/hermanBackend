@@ -23,12 +23,13 @@ const createNewPollEvent = (req, res) => __awaiter(void 0, void 0, void 0, funct
                 message: 'Le nom d\'événement est requis et doit être une chaîne'
             });
         }
-        const newEventName = yield pollService.createNewPoll(eventName);
+        const newEvent = yield pollService.createNewPoll(eventName);
         res.status(201).json({
             success: true,
-            message: `🎉 Nouveau sondage créé: "${newEventName}"`,
+            message: `🎉 Nouveau sondage créé: "${newEvent.eventName}"`,
             data: {
-                eventName: newEventName,
+                id: newEvent.id,
+                eventName: newEvent.eventName,
                 createdAt: new Date()
             }
         });
@@ -44,31 +45,34 @@ exports.createNewPollEvent = createNewPollEvent;
 // 2. Soumettre un vote (pour utilisateurs lambda)
 const createPoll = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { eventName, name, phone, rating, feedback } = req.body;
-        // Valider eventName (peut être string ou string[])
-        let validatedEventName = eventName;
-        if (Array.isArray(validatedEventName)) {
-            validatedEventName = validatedEventName[0];
+        const { eventId, name, phone, rating, feedback } = req.body;
+        // CORRECTION: Utiliser eventId au lieu de eventName
+        let validatedEventId = eventId;
+        if (Array.isArray(validatedEventId)) {
+            validatedEventId = validatedEventId[0];
         }
         // Validation
-        if (!validatedEventName || !name || !phone || !rating) {
+        if (!validatedEventId || !name || !phone || !rating) {
             return res.status(400).json({
                 success: false,
-                message: 'Tous les champs sont requis'
+                message: 'Tous les champs (eventId, name, phone, rating) sont requis'
             });
         }
-        const poll = yield pollService.createVote(validatedEventName, {
+        const poll = yield pollService.createVote(validatedEventId, {
             name: String(name),
             phone: String(phone),
             rating: Number(rating),
             feedback: feedback ? String(feedback) : ''
         });
+        // CORRECTION: Récupérer l'eventName pour l'affichage
+        const event = yield pollService.getByEventId(validatedEventId);
+        const eventName = event.length > 0 ? event[0].event_name : validatedEventId;
         res.status(201).json({
             success: true,
-            message: `✅ Merci pour votre évaluation de "${validatedEventName}" !`,
+            message: `✅ Merci pour votre évaluation !`,
             data: {
-                id: poll._id,
-                eventName: poll.eventName,
+                id: poll.id,
+                eventId: poll.eventId,
                 rating: poll.rating,
                 submittedAt: poll.submittedAt
             }
@@ -100,17 +104,21 @@ const getPolls = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
 });
 exports.getPolls = getPolls;
-// 4. Récupérer les évaluations par nom d'événement (admin)
+// 4. Récupérer les évaluations par ID d'événement (admin)
+// CORRECTION: Changer de eventName à eventId
 const getPollsByEvent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        let { eventName } = req.params;
-        // Valider eventName
-        if (Array.isArray(eventName)) {
-            eventName = eventName[0];
+        let { eventId } = req.params;
+        // Valider eventId
+        if (Array.isArray(eventId)) {
+            eventId = eventId[0];
         }
         // Décoder l'URL
-        eventName = decodeURIComponent(eventName);
-        const votes = yield pollService.getByEventName(eventName);
+        eventId = decodeURIComponent(eventId);
+        // CORRECTION: Utiliser getByEventId au lieu de getByEventName
+        const votes = yield pollService.getByEventId(eventId);
+        // Récupérer le nom de l'événement
+        const eventName = votes.length > 0 ? votes[0].event_name : eventId;
         // Calculer les stats
         const stats = votes.length > 0 ? {
             averageRating: (votes.reduce((sum, v) => sum + v.rating, 0) / votes.length).toFixed(1),
@@ -121,6 +129,7 @@ const getPollsByEvent = (req, res) => __awaiter(void 0, void 0, void 0, function
         } : null;
         res.json({
             success: true,
+            eventId,
             eventName,
             stats,
             data: votes,
@@ -176,18 +185,20 @@ const getAllEvents = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 });
 exports.getAllEvents = getAllEvents;
 // 7. Supprimer un événement complet (admin)
+// CORRECTION: Changer le paramètre de eventName à eventId
 const deleteEvent = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        let { eventName } = req.params;
-        if (Array.isArray(eventName)) {
-            eventName = eventName[0];
+        let { eventId } = req.params;
+        if (Array.isArray(eventId)) {
+            eventId = eventId[0];
         }
         // Décoder l'URL
-        eventName = decodeURIComponent(eventName);
-        const result = yield pollService.deleteEvent(eventName);
+        eventId = decodeURIComponent(eventId);
+        // CORRECTION: Utiliser deleteEventById au lieu de deleteEvent
+        const result = yield pollService.deleteEventById(eventId);
         res.json({
             success: true,
-            message: `Événement "${eventName}" supprimé avec ${result.deletedCount} vote(s)`,
+            message: result.deletedEvent ? `Événement supprimé avec succès` : `Événement non trouvé`,
             data: result
         });
     }

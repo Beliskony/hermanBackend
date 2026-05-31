@@ -65,6 +65,28 @@ declare const ComplaintMechanismSchema: Schema<IComplaintMechanism, import("mong
     }, "id"> & {
         id: string;
     }> | undefined;
+    strengths?: import("mongoose").SchemaDefinitionProperty<string[], IComplaintMechanism, Document<unknown, {}, IComplaintMechanism, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IComplaintMechanism & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    weaknesses?: import("mongoose").SchemaDefinitionProperty<{
+        deficiency: string;
+        consequence: string;
+        severity: string;
+    }[], IComplaintMechanism, Document<unknown, {}, IComplaintMechanism, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IComplaintMechanism & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
     documentaryBasis?: import("mongoose").SchemaDefinitionProperty<Record<string, {
         finding: string;
         evidence: string;
@@ -82,28 +104,6 @@ declare const ComplaintMechanismSchema: Schema<IComplaintMechanism, import("mong
         findings: string;
         evaluation: string;
     }>, IComplaintMechanism, Document<unknown, {}, IComplaintMechanism, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IComplaintMechanism & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    strengths?: import("mongoose").SchemaDefinitionProperty<string[], IComplaintMechanism, Document<unknown, {}, IComplaintMechanism, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IComplaintMechanism & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    weaknesses?: import("mongoose").SchemaDefinitionProperty<{
-        deficiency: string;
-        consequence: string;
-        severity: string;
-    }[], IComplaintMechanism, Document<unknown, {}, IComplaintMechanism, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IComplaintMechanism & Required<{
         _id: import("mongoose").Types.ObjectId;

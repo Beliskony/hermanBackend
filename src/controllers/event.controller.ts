@@ -17,7 +17,8 @@ export class EventController {
         });
       }
 
-      const event = await eventService.createEvent({ EventName });
+      // CORRECTION : Passer directement le nom (string), pas un objet
+      const event = await eventService.createEvent(EventName);
 
       return res.status(201).json({
         success: true,
@@ -56,10 +57,11 @@ export class EventController {
     try {
       const event = await eventService.getLatestEvent();
 
-      return  res.status(200).json({
-      _id: event._id,
-      name: event.EventName
-    });
+      // CORRECTION : Adapter les propriétés retournées
+      return res.status(200).json({
+        id: event.id,           // Changé de _id à id
+        name: event.event_name  // Changé de EventName à event_name
+      });
 
     } catch (error: any) {
       return res.status(404).json({
@@ -72,14 +74,12 @@ export class EventController {
   // ---------------- UPDATE ----------------
   async update(req: Request, res: Response) {
     try {
-
       let id = req.params.id;
-        if (Array.isArray(id)) {
+      if (Array.isArray(id)) {
         id = id[0];
       }
 
       const { EventName } = req.body;
-
 
       if (!EventName) {
         return res.status(400).json({
@@ -88,7 +88,8 @@ export class EventController {
         });
       }
 
-      const updatedEvent = await eventService.updateEvent(id, { EventName });
+      // CORRECTION : Passer l'id et le nom comme paramètres séparés
+      const updatedEvent = await eventService.updateEvent(id, EventName);
 
       return res.status(200).json({
         success: true,
@@ -107,13 +108,12 @@ export class EventController {
   // ---------------- DELETE ----------------
   async delete(req: Request, res: Response) {
     try {
-
       let id = req.params.id;
       if (Array.isArray(id)) {
-      id = id[0];
-    }
+        id = id[0];
+      }
 
-     await eventService.deleteEvent(id);
+      await eventService.deleteEvent(id);
 
       return res.status(200).json({
         success: true,

@@ -78,42 +78,6 @@ declare const GuideEntretienSchema: Schema<IGuideEntretien, import("mongoose").M
     }, "id"> & {
         id: string;
     }> | undefined;
-    guideType?: import("mongoose").SchemaDefinitionProperty<GuideType, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    subprojet?: import("mongoose").SchemaDefinitionProperty<string, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    generalInfo?: import("mongoose").SchemaDefinitionProperty<{
-        nom: string;
-        fonction: string;
-        contact: string;
-        date: Date;
-        lieu: string;
-        typeEntretien?: "individuel" | "focus_group";
-        employeur?: string;
-        typeContrat?: "cdd" | "journalier" | "interimaire";
-    }, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
     theme1?: import("mongoose").SchemaDefinitionProperty<{
         questions: Array<{
             questionId: string;
@@ -173,6 +137,42 @@ declare const GuideEntretienSchema: Schema<IGuideEntretien, import("mongoose").M
             reponse: string;
         }>;
     } | undefined, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    guideType?: import("mongoose").SchemaDefinitionProperty<GuideType, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    subprojet?: import("mongoose").SchemaDefinitionProperty<string, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    generalInfo?: import("mongoose").SchemaDefinitionProperty<{
+        nom: string;
+        fonction: string;
+        contact: string;
+        date: Date;
+        lieu: string;
+        typeEntretien?: "individuel" | "focus_group";
+        employeur?: string;
+        typeContrat?: "cdd" | "journalier" | "interimaire";
+    }, IGuideEntretien, Document<unknown, {}, IGuideEntretien, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGuideEntretien & Required<{
         _id: import("mongoose").Types.ObjectId;

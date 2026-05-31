@@ -1,19 +1,17 @@
-import { Types } from "mongoose";
-import { IEvent } from "./IEvent";
-interface IPoll {
-    eventName: Types.ObjectId | IEvent;
+export interface IPoll {
+    id: string;
+    event_id: string;
     name: string;
     phone: string;
     rating: number;
     feedback: string;
-    submittedAt?: Date;
+    submitted_at: Date;
 }
-export declare const Poll: import("mongoose").Model<IPoll, {}, {}, {}, import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
-    _id: Types.ObjectId;
-} & {
-    __v: number;
-} & {
-    id: string;
-}, any, IPoll>;
-export type { IPoll };
+export interface ICreatePoll {
+    event_id: string;
+    name: string;
+    phone: string;
+    rating: number;
+    feedback: string;
+}
 //# sourceMappingURL=IPoll.d.ts.map

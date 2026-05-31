@@ -1,3 +1,4 @@
-declare const connectDB: () => Promise<void>;
-export default connectDB;
+import mysql from 'mysql2/promise';
+export declare const pool: mysql.Pool;
+export declare function testDbConnection(): Promise<boolean>;
 //# sourceMappingURL=databaseConnect.d.ts.map

@@ -1,421 +1,909 @@
-import { GuideEntretien, IGuideEntretien } from '../interfaces/GuideEntretien.model';
-import { ChecklistAudit, ChecklistConducteurTravaux, IChecklistConducteurTravaux, IChecklistAudit } from '../interfaces/ChecklistAudit.model';
-import { FormData, IFormData } from '../interfaces/FormData.model';
+// ─────────────────────────────────────────────────────────────────────────────
+//  form.service.ts  —  MySQL version
+//
+//  Stratégie :
+//  • FormData (APES)          → tables form_data + sections filles
+//  • GuideEntretien           → guide_entretien + guide_entretien_questions
+//  • ChecklistAudit           → checklist_audit + criteres + documents
+//  • ChecklistConducteur      → checklist_conducteur + questions
+//
+//  Les champs JSON MySQL (waterManagement, responses, etc.) sont
+//  sérialisés/désérialisés avec JSON.stringify / JSON.parse.
+//
+//  Pagination : LIMIT / OFFSET (remplace .skip().limit())
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { pool }  from '../config/databaseConnect';
+import { newId } from '../utils/id';
+import type { RowDataPacket, ResultSetHeader } from 'mysql2';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** mysql2 retourne les résultats des CALL dans rows[0] */
+function firstResultSet(rows: any): any[] {
+  return Array.isArray(rows[0]) ? rows[0] : rows;
+}
+
+/** Compte les lignes d'une table avec un filtre optionnel WHERE */
+async function countRows(table: string, where = '1=1', params: any[] = []): Promise<number> {
+  const [rows] = await pool.query<any[]>(
+    `SELECT COUNT(*) AS total FROM ${table} WHERE ${where}`,
+    params
+  );
+  return rows[0].total as number;
+}
+
+// =============================================================================
+//  FORM DATA — APES
+// =============================================================================
 
 export class FormService {
 
- /**
-   * Créer un nouveau formulaire
-   */
-  async createForm(formData: Partial<IFormData>): Promise<IFormData> {
-    try {
-      const form = new FormData(formData);
-      return await form.save();
-    } catch (error) {
-      throw new Error(`Erreur lors de la création du formulaire: ${error}`);
-    }
-  }
-
-  /**
-   * Récupérer un formulaire par ID
-   */
-  async getFormById(id: string): Promise<IFormData | null> {
-    try {
-      return await FormData.findById(id);
-    } catch (error) {
-      throw new Error(`Erreur lors de la récupération du formulaire: ${error}`);
-    }
-  }
-
-  /**
-   * Récupérer tous les formulaires
-   */
-  async getAllForms(
-    filters: {
-      status?: string;
-      projectName?: string;
-      dateFrom?: Date;
-      dateTo?: Date;
-    } = {},
-    page: number = 1,
-    limit: number = 10
-  ): Promise<{ forms: IFormData[]; total: number; page: number; totalPages: number }> {
-    try {
-      const query: any = {};
-      
-      if (filters.status) query.status = filters.status;
-      if (filters.projectName) {
-        query['projectInfo.projectName'] = { $regex: filters.projectName, $options: 'i' };
-      }
-      if (filters.dateFrom || filters.dateTo) {
-        query.createdAt = {};
-        if (filters.dateFrom) query.createdAt.$gte = filters.dateFrom;
-        if (filters.dateTo) query.createdAt.$lte = filters.dateTo;
-      }
-
-      const skip = (page - 1) * limit;
-      
-      const [forms, total] = await Promise.all([
-        FormData.find(query)
-          .sort({ createdAt: -1 })
-          .skip(skip)
-          .limit(limit),
-        FormData.countDocuments(query)
-      ]);
-
-      return {
-        forms,
-        total,
-        page,
-        totalPages: Math.ceil(total / limit)
-      };
-    } catch (error) {
-      throw new Error(`Erreur lors de la récupération des formulaires: ${error}`);
-    }
-  }
-
-  /**
-   * Mettre à jour un formulaire
-   */
-  async updateForm(id: string, updateData: Partial<IFormData>): Promise<IFormData | null> {
-    try {
-      // Ne pas permettre la mise à jour du statut à "submitted" si déjà soumis
-      if (updateData.status === 'submitted') {
-        const existingForm = await FormData.findById(id);
-        if (existingForm?.status === 'submitted') {
-          throw new Error('Le formulaire a déjà été soumis et ne peut plus être modifié');
-        }
-        updateData.submittedAt = new Date();
-      }
-
-      return await FormData.findByIdAndUpdate(
-        id,
-        { ...updateData, updatedAt: new Date() },
-        { new: true, runValidators: true }
-      );
-    } catch (error) {
-      throw new Error(`Erreur lors de la mise à jour du formulaire: ${error}`);
-    }
-  }
-
-  /**
-   * Supprimer un formulaire
-   */
-  async deleteForm(id: string): Promise<boolean> {
-    try {
-      const result = await FormData.findByIdAndDelete(id);
-      return result !== null;
-    } catch (error) {
-      throw new Error(`Erreur lors de la suppression du formulaire: ${error}`);
-    }
-  }
-
-  /**
-   * Soumettre un formulaire (changer le statut à submitted)
-   */
-  async submitForm(id: string): Promise<IFormData | null> {
-    try {
-      return await FormData.findByIdAndUpdate(
-        id,
-        { 
-          status: 'submitted',
-          submittedAt: new Date(),
-          updatedAt: new Date()
-        },
-        { new: true }
-      );
-    } catch (error) {
-      throw new Error(`Erreur lors de la soumission du formulaire: ${error}`);
-    }
-  }
-
-  /**
-   * Statistiques des formulaires
-   */
-  async getFormStats(): Promise<any> {
-  try {
-    // Récupérer les comptages de chaque collection séparément
-    const [apesStats, checklistAuditStats, checklistConducteurStats, guideEntretienStats] = await Promise.all([
-      FormData.aggregate([
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 },
-            latest: { $max: '$createdAt' }
-          }
-        }
-      ]),
-      ChecklistAudit.aggregate([
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 },
-            latest: { $max: '$createdAt' }
-          }
-        }
-      ]),
-      ChecklistConducteurTravaux.aggregate([
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 },
-            latest: { $max: '$createdAt' }
-          }
-        }
-      ]),
-      GuideEntretien.aggregate([
-        {
-          $group: {
-            _id: '$status',
-            count: { $sum: 1 },
-            latest: { $max: '$createdAt' }
-          }
-        }
-      ])
-    ]);
-
-    // Structure des statistiques par type
-    const byFormType = {
-      apes: this.formatStats(apesStats),
-      checklistAudit: this.formatStats(checklistAuditStats),
-      checklistConducteur: this.formatStats(checklistConducteurStats),
-      guideEntretien: this.formatStats(guideEntretienStats)
+  // ── CREATE FORM ────────────────────────────────────────────────────────────
+  async createForm(formData: {
+    projectInfo: {
+      projectName: string;
+      date: Date | string;
+      auditors: string;
+      location: string;
+      period: string;
     };
+    documentReview?: any;
+    fieldInspection?: any;
+    stakeholderInterview?: any;
+    genderAssessment?: any;
+    complaintMechanism?: any;
+    status?: 'draft' | 'submitted' | 'archived';
+  }) {
+    const formId    = newId();
+    const projectId = newId();
 
-    // Calcul des totaux globaux
-    const totalApres = apesStats.reduce((sum, s) => sum + s.count, 0);
-    const totalChecklistAudit = checklistAuditStats.reduce((sum, s) => sum + s.count, 0);
-    const totalChecklistConducteur = checklistConducteurStats.reduce((sum, s) => sum + s.count, 0);
-    const totalGuideEntretien = guideEntretienStats.reduce((sum, s) => sum + s.count, 0);
-
-    const totalAll = totalApres + totalChecklistAudit + totalChecklistConducteur + totalGuideEntretien;
-
-    // Statistiques globales par statut
-    const globalByStatus = this.mergeStatsByStatus([
-      apesStats,
-      checklistAuditStats,
-      checklistConducteurStats,
-      guideEntretienStats
+    // 1 — Créer project_info + form_data (transaction dans la proc)
+    await pool.query('CALL sp_create_form(?,?,?,?,?,?,?,?)', [
+      formId,
+      projectId,
+      formData.projectInfo.projectName,
+      formData.projectInfo.date,
+      formData.projectInfo.auditors,
+      formData.projectInfo.location,
+      formData.projectInfo.period,
+      formData.status ?? 'draft',
     ]);
+
+    // 2 — Sections filles (si fournies à la création)
+    await this._saveSections(formId, formData);
+
+    return { id: formId, projectId, status: formData.status ?? 'draft' };
+  }
+
+  // ── GET BY ID ──────────────────────────────────────────────────────────────
+  async getFormById(id: string) {
+    // Infos de base via la vue
+    const [base] = await pool.query<any[]>(
+      'SELECT * FROM v_form_summary WHERE form_id = ?',
+      [id]
+    );
+    if (base.length === 0) return null;
+
+    // Sections filles
+    const [docReview]      = await pool.query<any[]>('SELECT * FROM document_review      WHERE form_id = ?', [id]);
+    const [fieldInsp]      = await pool.query<any[]>('SELECT * FROM field_inspection     WHERE form_id = ?', [id]);
+    const [stakeholder]    = await pool.query<any[]>('SELECT * FROM stakeholder_interview WHERE form_id = ?', [id]);
+    const [genderBase]     = await pool.query<any[]>('SELECT * FROM gender_assessment    WHERE form_id = ?', [id]);
+    const [complaint]      = await pool.query<any[]>('SELECT * FROM complaint_mechanism  WHERE form_id = ?', [id]);
+
+    // Sous-tables gender
+    let genderFull: any = null;
+    if (genderBase.length > 0) {
+      const gId = genderBase[0].id;
+      const [objectives]     = await pool.query<any[]>('SELECT * FROM gender_objectives      WHERE gender_assessment_id = ? ORDER BY sort_order', [gId]);
+      const [consultations]  = await pool.query<any[]>('SELECT * FROM gender_consultations   WHERE gender_assessment_id = ? ORDER BY sort_order', [gId]);
+      const [impacts]        = await pool.query<any[]>('SELECT * FROM gender_impacts         WHERE gender_assessment_id = ? ORDER BY sort_order', [gId]);
+      const [recommendations]= await pool.query<any[]>('SELECT * FROM gender_recommendations WHERE gender_assessment_id = ? ORDER BY sort_order', [gId]);
+
+      genderFull = {
+        ...genderBase[0],
+        quantitative_data: this._parseJson(genderBase[0].quantitative_data),
+        objectives,
+        consultations,
+        impacts,
+        recommendations,
+      };
+    }
+
+    // Sous-tables complaint
+    let complaintFull: any = null;
+    if (complaint.length > 0) {
+      const cId = complaint[0].id;
+      const [strengths]       = await pool.query<any[]>('SELECT * FROM complaint_strengths      WHERE complaint_mechanism_id = ? ORDER BY sort_order', [cId]);
+      const [weaknesses]      = await pool.query<any[]>('SELECT * FROM complaint_weaknesses     WHERE complaint_mechanism_id = ? ORDER BY sort_order', [cId]);
+      const [recommendations] = await pool.query<any[]>('SELECT * FROM complaint_recommendations WHERE complaint_mechanism_id = ? ORDER BY sort_order', [cId]);
+
+      complaintFull = {
+        ...complaint[0],
+        documentary_basis: this._parseJson(complaint[0].documentary_basis),
+        key_criteria:      this._parseJson(complaint[0].key_criteria),
+        strengths:         strengths.map((s: any) => s.strength),
+        weaknesses,
+        recommendations,
+      };
+    }
 
     return {
-      total: totalAll,
-      byFormType,
-      byStatus: globalByStatus,
-      details: {
-        apes: { total: totalApres, stats: byFormType.apes },
-        checklistAudit: { total: totalChecklistAudit, stats: byFormType.checklistAudit },
-        checklistConducteur: { total: totalChecklistConducteur, stats: byFormType.checklistConducteur },
-        guideEntretien: { total: totalGuideEntretien, stats: byFormType.guideEntretien }
-      }
+      ...base[0],
+      documentReview:      docReview[0]   ? { ...docReview[0], documents_presents: this._parseJson(docReview[0].documents_presents), documents_analysis: this._parseJson(docReview[0].documents_analysis) } : null,
+      fieldInspection:     fieldInsp[0]   ? { ...fieldInsp[0], zones: this._parseJson(fieldInsp[0].zones), water_management: this._parseJson(fieldInsp[0].water_management), waste_management: this._parseJson(fieldInsp[0].waste_management), emissions: this._parseJson(fieldInsp[0].emissions), health_safety: this._parseJson(fieldInsp[0].health_safety), community: this._parseJson(fieldInsp[0].community) } : null,
+      stakeholderInterview:stakeholder[0] ? { ...stakeholder[0], responses: this._parseJson(stakeholder[0].responses) } : null,
+      genderAssessment:    genderFull,
+      complaintMechanism:  complaintFull,
     };
-  } catch (error) {
-    throw new Error(`Erreur lors du calcul des statistiques: ${error}`);
   }
-}
 
-// Méthode utilitaire pour formater les stats d'un type
-private formatStats(stats: any[]): any[] {
-  return stats.map(stat => ({
-    status: stat._id,
-    count: stat.count,
-    latest: stat.latest
-  }));
-}
+  // ── GET ALL (paginated + filters) ─────────────────────────────────────────
+  async getAllForms(
+    filters: { status?: string; projectName?: string; dateFrom?: Date; dateTo?: Date } = {},
+    page  = 1,
+    limit = 10
+  ) {
+    const conditions: string[] = [];
+    const params: any[]        = [];
 
-// Méthode pour fusionner les statistiques par statut
-private mergeStatsByStatus(allStatsArrays: any[][]): any[] {
-  const statusMap = new Map();
-  const statusOrder = ['draft', 'submitted', 'reviewed', 'approved', 'archived'];
-  const statusLabels: Record<string, string> = {
-    draft: 'Brouillon',
-    submitted: 'Soumis',
-    reviewed: 'Révisé',
-    approved: 'Approuvé',
-    archived: 'Archivé'
-  };
+    if (filters.status) {
+      conditions.push('status = ?');
+      params.push(filters.status);
+    }
+    if (filters.projectName) {
+      conditions.push('project_name LIKE ?');
+      params.push(`%${filters.projectName}%`);
+    }
+    if (filters.dateFrom) {
+      conditions.push('created_at >= ?');
+      params.push(filters.dateFrom);
+    }
+    if (filters.dateTo) {
+      conditions.push('created_at <= ?');
+      params.push(filters.dateTo);
+    }
 
-  allStatsArrays.forEach(statsArray => {
-    statsArray.forEach(stat => {
-      const status = stat._id;
-      if (statusMap.has(status)) {
-        statusMap.set(status, statusMap.get(status) + stat.count);
-      } else {
-        statusMap.set(status, stat.count);
+    const where  = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+    const offset = (page - 1) * limit;
+
+    const [forms] = await pool.query<any[]>(
+      `SELECT * FROM v_form_summary WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    const total = await countRows('v_form_summary', where, params);
+
+    return { forms, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  // ── UPDATE FORM ────────────────────────────────────────────────────────────
+  async updateForm(id: string, updateData: any) {
+    // Bloquer la re-soumission d'un formulaire déjà soumis
+    if (updateData.status === 'submitted') {
+      const [rows] = await pool.query<any[]>(
+        'SELECT status FROM form_data WHERE id = ?',
+        [id]
+      );
+      if (rows[0]?.status === 'submitted') {
+        throw new Error('Le formulaire a déjà été soumis et ne peut plus être modifié');
       }
-    });
-  });
-
-  // Retourner les stats triées par ordre de statut
-  return statusOrder
-    .filter(status => statusMap.has(status))
-    .map(status => ({
-      status,
-      label: statusLabels[status] || status,
-      count: statusMap.get(status)
-    }));
-}
-
-  // ─── GUIDE D'ENTRETIEN ───────────────────────────────────────
-  async createGuideEntretien(data: Partial<IGuideEntretien>): Promise<IGuideEntretien> {
-    try {
-      return await new GuideEntretien(data).save();
-    } catch (error) {
-      throw new Error(`Erreur création GuideEntretien: ${error}`);
     }
-  }
- 
-  async getGuideEntretienById(id: string): Promise<IGuideEntretien | null> {
-    try {
-      return await GuideEntretien.findById(id);
-    } catch (error) {
-      throw new Error(`Erreur récupération GuideEntretien: ${error}`);
+
+    if (updateData.projectInfo) {
+      await pool.query('CALL sp_update_form(?,?,?,?,?,?,?)', [
+        id,
+        updateData.projectInfo.projectName,
+        updateData.projectInfo.date,
+        updateData.projectInfo.auditors,
+        updateData.projectInfo.location,
+        updateData.projectInfo.period,
+        updateData.status ?? 'draft',
+      ]);
+    } else if (updateData.status) {
+      await pool.query(
+        'UPDATE form_data SET status = ?, updated_at = NOW() WHERE id = ?',
+        [updateData.status, id]
+      );
     }
+
+    // Mettre à jour les sections si fournies
+    await this._saveSections(id, updateData);
+
+    return this.getFormById(id);
   }
- 
+
+  // ── DELETE FORM ────────────────────────────────────────────────────────────
+  async deleteForm(id: string): Promise<boolean> {
+    await pool.query('CALL sp_delete_form(?,?)', [id, 1]); // 1 = hard delete
+    return true;
+  }
+
+  // ── SUBMIT FORM ────────────────────────────────────────────────────────────
+  async submitForm(id: string) {
+    await pool.query('CALL sp_submit_form(?)', [id]);
+    return this.getFormById(id);
+  }
+
+  // ── STATS ──────────────────────────────────────────────────────────────────
+  async getFormStats() {
+    const [apesStats] = await pool.query<any[]>(`
+      SELECT status, COUNT(*) AS count, MAX(created_at) AS latest
+      FROM form_data
+      GROUP BY status
+    `);
+
+    const [auditStats] = await pool.query<any[]>(`
+      SELECT 'N/A' AS status, COUNT(*) AS count, MAX(created_at) AS latest
+      FROM checklist_audit
+    `);
+
+    const [conducteurStats] = await pool.query<any[]>(`
+      SELECT 'N/A' AS status, COUNT(*) AS count, MAX(created_at) AS latest
+      FROM checklist_conducteur
+    `);
+
+    const [guideStats] = await pool.query<any[]>(`
+      SELECT guide_type AS status, COUNT(*) AS count, MAX(created_at) AS latest
+      FROM guide_entretien
+      GROUP BY guide_type
+    `);
+
+    const totalApes       = apesStats.reduce((s, r) => s + Number(r.count), 0);
+    const totalAudit      = auditStats.reduce((s, r) => s + Number(r.count), 0);
+    const totalConducteur = conducteurStats.reduce((s, r) => s + Number(r.count), 0);
+    const totalGuide      = guideStats.reduce((s, r) => s + Number(r.count), 0);
+
+    const statusLabels: Record<string, string> = {
+      draft:     'Brouillon',
+      submitted: 'Soumis',
+      archived:  'Archivé',
+    };
+
+    return {
+      total: totalApes + totalAudit + totalConducteur + totalGuide,
+      byFormType: {
+        apes:                apesStats.map(this._formatStat(statusLabels)),
+        checklistAudit:      auditStats.map(this._formatStat(statusLabels)),
+        checklistConducteur: conducteurStats.map(this._formatStat(statusLabels)),
+        guideEntretien:      guideStats.map(this._formatStat(statusLabels)),
+      },
+      details: {
+        apes:               { total: totalApes,       stats: apesStats },
+        checklistAudit:     { total: totalAudit,      stats: auditStats },
+        checklistConducteur:{ total: totalConducteur, stats: conducteurStats },
+        guideEntretien:     { total: totalGuide,      stats: guideStats },
+      },
+    };
+  }
+
+  // =============================================================================
+  //  GUIDE D'ENTRETIEN
+  // =============================================================================
+
+  async createGuideEntretien(data: any) {
+    const id = newId();
+
+    await pool.query('CALL sp_save_guide_entretien(?,?,?,?,?,?,?,?,?,?,?,?)', [
+      id,
+      data.guideType,
+      data.subprojet,
+      data.generalInfo.nom,
+      data.generalInfo.fonction,
+      data.generalInfo.contact  ?? '',
+      data.generalInfo.date,
+      data.generalInfo.lieu,
+      data.generalInfo.typeEntretien ?? '',
+      data.generalInfo.employeur     ?? '',
+      data.generalInfo.typeContrat   ?? '',
+      data.notesAuditeur ?? '',
+    ]);
+
+    // Insérer les questions de chaque thème
+    await this._insertGuideQuestions(id, data);
+
+    return this.getGuideEntretienById(id);
+  }
+
+  async getGuideEntretienById(id: string) {
+    const [rows] = await pool.query<any[]>(
+      'SELECT * FROM guide_entretien WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) return null;
+
+    const [questions] = await pool.query<any[]>(
+      'SELECT * FROM guide_entretien_questions WHERE guide_entretien_id = ? ORDER BY theme_key, sort_order',
+      [id]
+    );
+
+    return this._buildGuideResponse(rows[0], questions);
+  }
+
   async getAllGuideEntretiens(
     filters: { guideType?: string; subprojet?: string } = {},
-    page = 1,
+    page  = 1,
     limit = 10
   ) {
-    try {
-      const query: any = {};
-      if (filters.guideType) query.guideType = filters.guideType;
-      if (filters.subprojet) query.subprojet = { $regex: filters.subprojet, $options: 'i' };
- 
-      const skip = (page - 1) * limit;
-      const [items, total] = await Promise.all([
-        GuideEntretien.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
-        GuideEntretien.countDocuments(query)
-      ]);
-      return { items, total, page, totalPages: Math.ceil(total / limit) };
-    } catch (error) {
-      throw new Error(`Erreur récupération GuideEntretiens: ${error}`);
-    }
+    const conditions: string[] = [];
+    const params: any[]        = [];
+
+    if (filters.guideType) { conditions.push('guide_type = ?');        params.push(filters.guideType); }
+    if (filters.subprojet) { conditions.push('subprojet LIKE ?');      params.push(`%${filters.subprojet}%`); }
+
+    const where  = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+    const offset = (page - 1) * limit;
+
+    const [items] = await pool.query<any[]>(
+      `SELECT * FROM v_guide_entretiens WHERE ${where} ORDER BY date_entretien DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    const total = await countRows('guide_entretien', where, params);
+
+    return { items, total, page, totalPages: Math.ceil(total / limit) };
   }
- 
-  async updateGuideEntretien(id: string, data: Partial<IGuideEntretien>): Promise<IGuideEntretien | null> {
-    try {
-      return await GuideEntretien.findByIdAndUpdate(id, data, { new: true, runValidators: true });
-    } catch (error) {
-      throw new Error(`Erreur mise à jour GuideEntretien: ${error}`);
-    }
+
+  async updateGuideEntretien(id: string, data: any) {
+    await pool.query('CALL sp_save_guide_entretien(?,?,?,?,?,?,?,?,?,?,?,?)', [
+      id,
+      data.guideType,
+      data.subprojet,
+      data.generalInfo.nom,
+      data.generalInfo.fonction,
+      data.generalInfo.contact  ?? '',
+      data.generalInfo.date,
+      data.generalInfo.lieu,
+      data.generalInfo.typeEntretien ?? '',
+      data.generalInfo.employeur     ?? '',
+      data.generalInfo.typeContrat   ?? '',
+      data.notesAuditeur ?? '',
+    ]);
+
+    // Re-synchroniser les questions : supprimer + réinsérer
+    await pool.query('DELETE FROM guide_entretien_questions WHERE guide_entretien_id = ?', [id]);
+    await this._insertGuideQuestions(id, data);
+
+    return this.getGuideEntretienById(id);
   }
- 
+
   async deleteGuideEntretien(id: string): Promise<boolean> {
-    try {
-      return (await GuideEntretien.findByIdAndDelete(id)) !== null;
-    } catch (error) {
-      throw new Error(`Erreur suppression GuideEntretien: ${error}`);
-    }
+    const [result] = await pool.query<any>(
+      'DELETE FROM guide_entretien WHERE id = ?',
+      [id]
+    );
+    return result.affectedRows > 0;
   }
- 
-  // ─── CHECKLIST AUDIT ─────────────────────────────────────────
-  async createChecklistAudit(data: Partial<IChecklistAudit>): Promise<IChecklistAudit> {
-    try {
-      return await new ChecklistAudit(data).save();
-    } catch (error) {
-      throw new Error(`Erreur création ChecklistAudit: ${error}`);
-    }
+
+  // =============================================================================
+  //  CHECKLIST AUDIT
+  // =============================================================================
+
+  async createChecklistAudit(data: any) {
+    const id = newId();
+
+    await pool.query('CALL sp_save_checklist_audit(?,?,?,?,?,?,?)', [
+      id,
+      data.subprojet,
+      data.auditeurs,
+      data.date,
+      data.synthese?.nombreNonConformitesMajeures ?? 0,
+      data.synthese?.domainesCritiques            ?? '',
+      data.synthese?.signatureAuditeur            ?? '',
+    ]);
+
+    await this._insertChecklistCriteres(id, data);
+    await this._insertChecklistDocuments(id, data.section6_bilanDocumentaire ?? []);
+
+    return this.getChecklistAuditById(id);
   }
- 
-  async getChecklistAuditById(id: string): Promise<IChecklistAudit | null> {
-    try {
-      return await ChecklistAudit.findById(id);
-    } catch (error) {
-      throw new Error(`Erreur récupération ChecklistAudit: ${error}`);
-    }
+
+  async getChecklistAuditById(id: string) {
+    const [rows] = await pool.query<any[]>(
+      'SELECT * FROM checklist_audit WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) return null;
+
+    const [criteres]  = await pool.query<any[]>(
+      'SELECT * FROM checklist_audit_criteres  WHERE checklist_audit_id = ? ORDER BY section_key, sort_order', [id]
+    );
+    const [documents] = await pool.query<any[]>(
+      'SELECT * FROM checklist_audit_documents WHERE checklist_audit_id = ? ORDER BY sort_order', [id]
+    );
+
+    return this._buildAuditResponse(rows[0], criteres, documents);
   }
- 
+
   async getAllChecklistAudits(
     filters: { subprojet?: string; auditeurs?: string } = {},
-    page = 1,
+    page  = 1,
     limit = 10
   ) {
-    try {
-      const query: any = {};
-      if (filters.subprojet) query.subprojet = { $regex: filters.subprojet, $options: 'i' };
-      if (filters.auditeurs) query.auditeurs = { $regex: filters.auditeurs, $options: 'i' };
- 
-      const skip = (page - 1) * limit;
-      const [items, total] = await Promise.all([
-        ChecklistAudit.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
-        ChecklistAudit.countDocuments(query)
-      ]);
-      return { items, total, page, totalPages: Math.ceil(total / limit) };
-    } catch (error) {
-      throw new Error(`Erreur récupération ChecklistAudits: ${error}`);
-    }
+    const conditions: string[] = [];
+    const params: any[]        = [];
+
+    if (filters.subprojet) { conditions.push('subprojet LIKE ?'); params.push(`%${filters.subprojet}%`); }
+    if (filters.auditeurs) { conditions.push('auditeurs LIKE ?'); params.push(`%${filters.auditeurs}%`); }
+
+    const where  = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+    const offset = (page - 1) * limit;
+
+    const [items] = await pool.query<any[]>(
+      `SELECT * FROM checklist_audit WHERE ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    const total = await countRows('checklist_audit', where, params);
+
+    return { items, total, page, totalPages: Math.ceil(total / limit) };
   }
- 
-  async updateChecklistAudit(id: string, data: Partial<IChecklistAudit>): Promise<IChecklistAudit | null> {
-    try {
-      return await ChecklistAudit.findByIdAndUpdate(id, data, { new: true, runValidators: true });
-    } catch (error) {
-      throw new Error(`Erreur mise à jour ChecklistAudit: ${error}`);
-    }
+
+  async updateChecklistAudit(id: string, data: any) {
+    await pool.query('CALL sp_save_checklist_audit(?,?,?,?,?,?,?)', [
+      id,
+      data.subprojet,
+      data.auditeurs,
+      data.date,
+      data.synthese?.nombreNonConformitesMajeures ?? 0,
+      data.synthese?.domainesCritiques            ?? '',
+      data.synthese?.signatureAuditeur            ?? '',
+    ]);
+
+    // Re-sync critères et documents
+    await pool.query('DELETE FROM checklist_audit_criteres  WHERE checklist_audit_id = ?', [id]);
+    await pool.query('DELETE FROM checklist_audit_documents WHERE checklist_audit_id = ?', [id]);
+    await this._insertChecklistCriteres(id, data);
+    await this._insertChecklistDocuments(id, data.section6_bilanDocumentaire ?? []);
+
+    return this.getChecklistAuditById(id);
   }
- 
+
   async deleteChecklistAudit(id: string): Promise<boolean> {
-    try {
-      return (await ChecklistAudit.findByIdAndDelete(id)) !== null;
-    } catch (error) {
-      throw new Error(`Erreur suppression ChecklistAudit: ${error}`);
-    }
+    const [result] = await pool.query<any>('DELETE FROM checklist_audit WHERE id = ?', [id]);
+    return result.affectedRows > 0;
   }
- 
-  // ─── CHECKLIST CONDUCTEUR TRAVAUX ────────────────────────────
-  async createChecklistConducteur(data: Partial<IChecklistConducteurTravaux>): Promise<IChecklistConducteurTravaux> {
-    try {
-      return await new ChecklistConducteurTravaux(data).save();
-    } catch (error) {
-      throw new Error(`Erreur création ChecklistConducteurTravaux: ${error}`);
-    }
+
+  // =============================================================================
+  //  CHECKLIST CONDUCTEUR TRAVAUX
+  // =============================================================================
+
+  async createChecklistConducteur(data: any) {
+    const id = newId();
+
+    await pool.query(
+      `INSERT INTO checklist_conducteur
+       (id, subprojet, auditeur, date, personne_rencontree, fonction, entreprise,
+        contact, duree_entretien, lieu, commentaires_libres, signature_auditeur)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        id, data.subprojet, data.auditeur, data.date,
+        data.personneRencontree, data.fonction, data.entreprise,
+        data.contact ?? '', data.dureeEntretien ?? '', data.lieu,
+        data.commentairesLibres ?? '', data.signatureAuditeur ?? '',
+      ]
+    );
+
+    await this._insertConducteurQuestions(id, data);
+
+    return this.getChecklistConducteurById(id);
   }
- 
-  async getChecklistConducteurById(id: string): Promise<IChecklistConducteurTravaux | null> {
-    try {
-      return await ChecklistConducteurTravaux.findById(id);
-    } catch (error) {
-      throw new Error(`Erreur récupération ChecklistConducteurTravaux: ${error}`);
-    }
+
+  async getChecklistConducteurById(id: string) {
+    const [rows] = await pool.query<any[]>(
+      'SELECT * FROM checklist_conducteur WHERE id = ?',
+      [id]
+    );
+    if (rows.length === 0) return null;
+
+    const [questions] = await pool.query<any[]>(
+      'SELECT * FROM checklist_conducteur_questions WHERE checklist_conducteur_id = ? ORDER BY section_key, sort_order',
+      [id]
+    );
+
+    return this._buildConducteurResponse(rows[0], questions);
   }
- 
+
   async getAllChecklistConducteurs(
     filters: { subprojet?: string; entreprise?: string } = {},
-    page = 1,
+    page  = 1,
     limit = 10
   ) {
-    try {
-      const query: any = {};
-      if (filters.subprojet) query.subprojet = { $regex: filters.subprojet, $options: 'i' };
-      if (filters.entreprise) query.entreprise = { $regex: filters.entreprise, $options: 'i' };
- 
-      const skip = (page - 1) * limit;
-      const [items, total] = await Promise.all([
-        ChecklistConducteurTravaux.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
-        ChecklistConducteurTravaux.countDocuments(query)
-      ]);
-      return { items, total, page, totalPages: Math.ceil(total / limit) };
-    } catch (error) {
-      throw new Error(`Erreur récupération ChecklistConducteurTravaux: ${error}`);
-    }
+    const conditions: string[] = [];
+    const params: any[]        = [];
+
+    if (filters.subprojet) { conditions.push('subprojet  LIKE ?'); params.push(`%${filters.subprojet}%`); }
+    if (filters.entreprise){ conditions.push('entreprise LIKE ?'); params.push(`%${filters.entreprise}%`); }
+
+    const where  = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+    const offset = (page - 1) * limit;
+
+    const [items] = await pool.query<any[]>(
+      `SELECT * FROM checklist_conducteur WHERE ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    const total = await countRows('checklist_conducteur', where, params);
+
+    return { items, total, page, totalPages: Math.ceil(total / limit) };
   }
- 
-  async updateChecklistConducteur(id: string, data: Partial<IChecklistConducteurTravaux>): Promise<IChecklistConducteurTravaux | null> {
-    try {
-      return await ChecklistConducteurTravaux.findByIdAndUpdate(id, data, { new: true, runValidators: true });
-    } catch (error) {
-      throw new Error(`Erreur mise à jour ChecklistConducteurTravaux: ${error}`);
-    }
+
+  async updateChecklistConducteur(id: string, data: any) {
+    await pool.query(
+      `UPDATE checklist_conducteur
+       SET subprojet = ?, auditeur = ?, date = ?, personne_rencontree = ?,
+           fonction = ?, entreprise = ?, contact = ?, duree_entretien = ?,
+           lieu = ?, commentaires_libres = ?, signature_auditeur = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [
+        data.subprojet, data.auditeur, data.date, data.personneRencontree,
+        data.fonction, data.entreprise, data.contact ?? '', data.dureeEntretien ?? '',
+        data.lieu, data.commentairesLibres ?? '', data.signatureAuditeur ?? '', id,
+      ]
+    );
+
+    await pool.query('DELETE FROM checklist_conducteur_questions WHERE checklist_conducteur_id = ?', [id]);
+    await this._insertConducteurQuestions(id, data);
+
+    return this.getChecklistConducteurById(id);
   }
- 
+
   async deleteChecklistConducteur(id: string): Promise<boolean> {
-    try {
-      return (await ChecklistConducteurTravaux.findByIdAndDelete(id)) !== null;
-    } catch (error) {
-      throw new Error(`Erreur suppression ChecklistConducteurTravaux: ${error}`);
+    const [result] = await pool.query<any>(
+      'DELETE FROM checklist_conducteur WHERE id = ?',
+      [id]
+    );
+    return result.affectedRows > 0;
+  }
+
+  // =============================================================================
+  //  HELPERS PRIVÉS
+  // =============================================================================
+
+  /** Upsert toutes les sections d'un FormData */
+  private async _saveSections(formId: string, data: any) {
+    if (data.documentReview) {
+      const dr = data.documentReview;
+      await pool.query('CALL sp_save_document_review(?,?,?,?,?,?)', [
+        newId(), formId,
+        JSON.stringify(dr.documentsPresents  ?? {}),
+        JSON.stringify(dr.documentsAnalysis  ?? {}),
+        dr.documentsManquants ?? '',
+        dr.autresDocuments    ?? '',
+      ]);
+    }
+
+    if (data.fieldInspection) {
+      const fi = data.fieldInspection;
+      const fiId = newId();
+      await pool.query(
+        `INSERT INTO field_inspection
+         (id, form_id, project_name, date, auditors, accompaniers, zones,
+          water_management, waste_management, emissions, health_safety, community)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+         ON DUPLICATE KEY UPDATE
+           project_name = VALUES(project_name), date = VALUES(date),
+           auditors = VALUES(auditors), accompaniers = VALUES(accompaniers),
+           zones = VALUES(zones), water_management = VALUES(water_management),
+           waste_management = VALUES(waste_management), emissions = VALUES(emissions),
+           health_safety = VALUES(health_safety), community = VALUES(community)`,
+        [
+          fiId, formId, fi.projectName, fi.date, fi.auditors, fi.accompaniers ?? '',
+          JSON.stringify(fi.zones ?? []),
+          JSON.stringify(fi.waterManagement ?? {}),
+          JSON.stringify(fi.wasteManagement ?? {}),
+          JSON.stringify(fi.emissions       ?? {}),
+          JSON.stringify(fi.healthSafety    ?? {}),
+          JSON.stringify(fi.community       ?? {}),
+        ]
+      );
+    }
+
+    if (data.stakeholderInterview) {
+      const si = data.stakeholderInterview;
+      await pool.query('CALL sp_save_stakeholder_interview(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)', [
+        newId(), formId,
+        si.date, si.location, si.duration, si.stakeholderType,
+        si.profile.name, si.profile.function, si.profile.gender, si.profile.ageRange,
+        si.consent.confidentiality ? 1 : 0,
+        si.consent.notes           ? 1 : 0,
+        si.consent.recording       ? 1 : 0,
+        JSON.stringify(si.responses ?? {}),
+        si.evaluation.quality, si.evaluation.frankness,
+        si.evaluation.relevance, si.evaluation.climate,
+      ]);
+    }
+
+    if (data.genderAssessment) {
+      await this._saveGenderAssessment(formId, data.genderAssessment);
+    }
+
+    if (data.complaintMechanism) {
+      await this._saveComplaintMechanism(formId, data.complaintMechanism);
     }
   }
 
+  private async _saveGenderAssessment(formId: string, ga: any) {
+    // Upsert gender_assessment
+    const gaId = newId();
+    await pool.query(
+      `INSERT INTO gender_assessment (id, form_id, quantitative_data)
+       VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE quantitative_data = VALUES(quantitative_data)`,
+      [gaId, formId, JSON.stringify(ga.quantitativeData ?? {})]
+    );
+
+    // Récupérer l'id réel (en cas de ON DUPLICATE KEY)
+    const [gaRows] = await pool.query<any[]>(
+      'SELECT id FROM gender_assessment WHERE form_id = ?', [formId]
+    );
+    const realGaId = gaRows[0].id;
+
+    // Vider et réinsérer les sous-tables
+    await pool.query('DELETE FROM gender_objectives      WHERE gender_assessment_id = ?', [realGaId]);
+    await pool.query('DELETE FROM gender_consultations   WHERE gender_assessment_id = ?', [realGaId]);
+    await pool.query('DELETE FROM gender_impacts         WHERE gender_assessment_id = ?', [realGaId]);
+    await pool.query('DELETE FROM gender_recommendations WHERE gender_assessment_id = ?', [realGaId]);
+
+    for (const [i, obj] of (ga.objectives ?? []).entries()) {
+      await pool.query(
+        'INSERT INTO gender_objectives (id, gender_assessment_id, objective, indicator, status, sort_order) VALUES (?,?,?,?,?,?)',
+        [newId(), realGaId, obj.objective, obj.indicator, obj.status, i]
+      );
+    }
+
+    for (const [i, c] of (ga.consultations ?? []).entries()) {
+      await pool.query(
+        'INSERT INTO gender_consultations (id, gender_assessment_id, `group`, sessions, participants, method, sort_order) VALUES (?,?,?,?,?,?,?)',
+        [newId(), realGaId, c.group, c.sessions, c.participants, c.method, i]
+      );
+    }
+
+    for (const [i, imp] of [...(ga.impacts?.environmental ?? []).map((x: any) => ({ ...x, impact_type: 'environmental' })), ...(ga.impacts?.socioeconomic ?? []).map((x: any) => ({ ...x, impact_type: 'socioeconomic' }))].entries()) {
+      await pool.query(
+        'INSERT INTO gender_impacts (id, gender_assessment_id, impact_type, impact, women, men, vulnerable, severity, opportunity, sort_order) VALUES (?,?,?,?,?,?,?,?,?,?)',
+        [newId(), realGaId, imp.impact_type, imp.impact, imp.women, imp.men, imp.vulnerable, imp.severity ?? null, imp.opportunity ?? null, i]
+      );
+    }
+
+    for (const [i, r] of (ga.recommendations ?? []).entries()) {
+      await pool.query(
+        'INSERT INTO gender_recommendations (id, gender_assessment_id, recommendation, priority, scope, responsible, deadline, sort_order) VALUES (?,?,?,?,?,?,?,?)',
+        [newId(), realGaId, r.recommendation, r.priority, r.scope, r.responsible, r.deadline, i]
+      );
+    }
+  }
+
+  private async _saveComplaintMechanism(formId: string, cm: any) {
+    const cmId = newId();
+    await pool.query(
+      `INSERT INTO complaint_mechanism (id, form_id, documentary_basis, key_criteria, global_conclusion)
+       VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         documentary_basis = VALUES(documentary_basis),
+         key_criteria      = VALUES(key_criteria),
+         global_conclusion = VALUES(global_conclusion)`,
+      [cmId, formId, JSON.stringify(cm.documentaryBasis ?? {}), JSON.stringify(cm.keyCriteria ?? {}), cm.globalConclusion ?? '']
+    );
+
+    const [cmRows] = await pool.query<any[]>('SELECT id FROM complaint_mechanism WHERE form_id = ?', [formId]);
+    const realCmId = cmRows[0].id;
+
+    await pool.query('DELETE FROM complaint_strengths      WHERE complaint_mechanism_id = ?', [realCmId]);
+    await pool.query('DELETE FROM complaint_weaknesses     WHERE complaint_mechanism_id = ?', [realCmId]);
+    await pool.query('DELETE FROM complaint_recommendations WHERE complaint_mechanism_id = ?', [realCmId]);
+
+    for (const [i, s] of (cm.strengths ?? []).entries()) {
+      await pool.query('INSERT INTO complaint_strengths (id, complaint_mechanism_id, strength, sort_order) VALUES (?,?,?,?)', [newId(), realCmId, s, i]);
+    }
+    for (const [i, w] of (cm.weaknesses ?? []).entries()) {
+      await pool.query('INSERT INTO complaint_weaknesses (id, complaint_mechanism_id, deficiency, consequence, severity, sort_order) VALUES (?,?,?,?,?,?)', [newId(), realCmId, w.deficiency, w.consequence, w.severity, i]);
+    }
+    for (const [i, r] of (cm.recommendations ?? []).entries()) {
+      await pool.query('INSERT INTO complaint_recommendations (id, complaint_mechanism_id, recommendation, priority, responsible, deadline, sort_order) VALUES (?,?,?,?,?,?,?)', [newId(), realCmId, r.recommendation, r.priority, r.responsible, r.deadline, i]);
+    }
+  }
+
+  // Section → section_key mapping (ChecklistAudit)
+  private readonly SECTION_MAP: Record<string, string> = {
+    section1_cadreJuridique:                          's1',
+    'section2_infraSecurite.stabiliteStructure':      's2_stabilite',
+    'section2_infraSecurite.securiteIncendie':        's2_incendie',
+    'section2_infraSecurite.accessibilitePMR':        's2_pmr',
+    'section3_gestionEnvSociale.gestionDechets':      's3_dechets',
+    'section3_gestionEnvSociale.nuisancesPollution':  's3_nuisances',
+    'section3_gestionEnvSociale.santeSecuteTravailleurs': 's3_sante',
+    'section4_gestionSociale.relationsCommunautes':   's4_communautes',
+    'section4_gestionSociale.mgp':                    's4_mgp',
+    'section5_risquesERP.securiteSurete':             's5_securite',
+    'section5_risquesERP.hygieneEnvironnement':       's5_hygiene',
+  };
+
+  private async _insertChecklistCriteres(auditId: string, data: any) {
+    const sections: Array<{ key: string; items: any[] }> = [
+      { key: 's1',             items: data.section1_cadreJuridique ?? [] },
+      { key: 's2_stabilite',   items: data.section2_infraSecurite?.stabiliteStructure ?? [] },
+      { key: 's2_incendie',    items: data.section2_infraSecurite?.securiteIncendie   ?? [] },
+      { key: 's2_pmr',         items: data.section2_infraSecurite?.accessibilitePMR   ?? [] },
+      { key: 's3_dechets',     items: data.section3_gestionEnvSociale?.gestionDechets ?? [] },
+      { key: 's3_nuisances',   items: data.section3_gestionEnvSociale?.nuisancesPollution ?? [] },
+      { key: 's3_sante',       items: data.section3_gestionEnvSociale?.santeSecuteTravailleurs ?? [] },
+      { key: 's4_communautes', items: data.section4_gestionSociale?.relationsCommunautes ?? [] },
+      { key: 's4_mgp',         items: data.section4_gestionSociale?.mgp ?? [] },
+      { key: 's5_securite',    items: data.section5_risquesERP?.securiteSurete ?? [] },
+      { key: 's5_hygiene',     items: data.section5_risquesERP?.hygieneEnvironnement ?? [] },
+    ];
+
+    for (const section of sections) {
+      for (const [i, item] of section.items.entries()) {
+        await pool.query('CALL sp_add_critere(?,?,?,?,?,?,?,?,?,?)', [
+          newId(), auditId, section.key,
+          item.numero, item.critere, item.sourcesMethode ?? '',
+          item.conformite ?? 'S.O.',
+          item.observations ?? '', item.risqueNonConformite ?? '', i,
+        ]);
+      }
+    }
+  }
+
+  private async _insertChecklistDocuments(auditId: string, items: any[]) {
+    for (const [i, doc] of items.entries()) {
+      await pool.query(
+        `INSERT INTO checklist_audit_documents
+         (id, checklist_audit_id, numero, document, disponible, commentaires, sort_order)
+         VALUES (?,?,?,?,?,?,?)`,
+        [newId(), auditId, doc.numero, doc.document, doc.disponible ?? 'S.O.', doc.commentaires ?? '', i]
+      );
+    }
+  }
+
+  private readonly CONDUCTEUR_SECTIONS = [
+    'section1_infoGenerales', 'section2_processusInitialT1', 'section3_installationT2',
+    'section4_recrutementT2', 'section5_hseT2', 'section6_gestionEnvT2',
+    'section7_sensibilisationT2', 'section8_mgpT2', 'section9_fermetureT2',
+    'section10_exploitationT3', 'section11_synthese',
+  ];
+
+  private readonly CONDUCTEUR_KEY_MAP: Record<string, string> = {
+    section1_infoGenerales: 's1', section2_processusInitialT1: 's2',
+    section3_installationT2: 's3', section4_recrutementT2: 's4',
+    section5_hseT2: 's5', section6_gestionEnvT2: 's6',
+    section7_sensibilisationT2: 's7', section8_mgpT2: 's8',
+    section9_fermetureT2: 's9', section10_exploitationT3: 's10',
+    section11_synthese: 's11',
+  };
+
+  private async _insertConducteurQuestions(conducteurId: string, data: any) {
+    for (const section of this.CONDUCTEUR_SECTIONS) {
+      const items: any[] = data[section] ?? [];
+      const key = this.CONDUCTEUR_KEY_MAP[section];
+      for (const [i, q] of items.entries()) {
+        await pool.query(
+          `INSERT INTO checklist_conducteur_questions
+           (id, checklist_conducteur_id, section_key, numero, question,
+            reponse, reponse_booleenne, observations, sort_order)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [
+            newId(), conducteurId, key,
+            q.numero, q.question,
+            q.reponse ?? '', q.reponseBooleenne ?? null,
+            q.observations ?? '', i,
+          ]
+        );
+      }
+    }
+  }
+
+  private async _insertGuideQuestions(guideId: string, data: any) {
+    const themes = ['theme1', 'theme2', 'theme3', 'theme4'];
+    const themeKeys: Record<string, 't1' | 't2' | 't3' | 't4'> = {
+      theme1: 't1', theme2: 't2', theme3: 't3', theme4: 't4',
+    };
+
+    for (const theme of themes) {
+      const questions: any[] = data[theme]?.questions ?? [];
+      for (const [i, q] of questions.entries()) {
+        const nuisances = q.nuisancesObservees
+          ? JSON.stringify(q.nuisancesObservees)
+          : null;
+        await pool.query('CALL sp_add_guide_question(?,?,?,?,?,?,?,?)', [
+          newId(), guideId, themeKeys[theme],
+          q.questionId, q.question, q.reponse ?? '',
+          nuisances, i,
+        ]);
+      }
+    }
+  }
+
+  // ── Reconstructeurs (DB rows → shape Mongoose) ────────────────────────────
+
+  private _buildGuideResponse(row: any, questions: any[]) {
+    const byTheme = (key: string) => questions.filter(q => q.theme_key === key);
+    return {
+      ...row,
+      generalInfo: {
+        nom: row.gi_nom, fonction: row.gi_fonction, contact: row.gi_contact,
+        date: row.gi_date, lieu: row.gi_lieu, typeEntretien: row.gi_type_entretien,
+        employeur: row.gi_employeur, typeContrat: row.gi_type_contrat,
+      },
+      theme1: { questions: byTheme('t1') },
+      theme2: { questions: byTheme('t2').map((q: any) => ({
+        ...q,
+        nuisancesObservees: q.nuisance_poussiere !== null ? {
+          poussiere:   !!q.nuisance_poussiere,
+          bruit:       !!q.nuisance_bruit,
+          circulation: !!q.nuisance_circulation,
+          odeurs:      !!q.nuisance_odeurs,
+          dechets:     !!q.nuisance_dechets,
+        } : undefined,
+      })) },
+      theme3: { questions: byTheme('t3') },
+      theme4: byTheme('t4').length > 0 ? { questions: byTheme('t4') } : undefined,
+    };
+  }
+
+  private _buildAuditResponse(row: any, criteres: any[], documents: any[]) {
+    const bySectionKey = (key: string) => criteres.filter(c => c.section_key === key);
+    return {
+      ...row,
+      synthese: {
+        nombreNonConformitesMajeures: row.synth_nb_nc_majeures,
+        domainesCritiques:            row.synth_domaines_critiques,
+        signatureAuditeur:            row.synth_signature_auditeur,
+      },
+      section1_cadreJuridique:    bySectionKey('s1'),
+      section2_infraSecurite: {
+        stabiliteStructure: bySectionKey('s2_stabilite'),
+        securiteIncendie:   bySectionKey('s2_incendie'),
+        accessibilitePMR:   bySectionKey('s2_pmr'),
+      },
+      section3_gestionEnvSociale: {
+        gestionDechets:          bySectionKey('s3_dechets'),
+        nuisancesPollution:      bySectionKey('s3_nuisances'),
+        santeSecuteTravailleurs: bySectionKey('s3_sante'),
+      },
+      section4_gestionSociale: {
+        relationsCommunautes: bySectionKey('s4_communautes'),
+        mgp:                  bySectionKey('s4_mgp'),
+      },
+      section5_risquesERP: {
+        securiteSurete:       bySectionKey('s5_securite'),
+        hygieneEnvironnement: bySectionKey('s5_hygiene'),
+      },
+      section6_bilanDocumentaire: documents,
+    };
+  }
+
+  private _buildConducteurResponse(row: any, questions: any[]) {
+    const byKey = (k: string) => questions.filter(q => q.section_key === k);
+    return {
+      ...row,
+      section1_infoGenerales:      byKey('s1'),
+      section2_processusInitialT1: byKey('s2'),
+      section3_installationT2:     byKey('s3'),
+      section4_recrutementT2:      byKey('s4'),
+      section5_hseT2:              byKey('s5'),
+      section6_gestionEnvT2:       byKey('s6'),
+      section7_sensibilisationT2:  byKey('s7'),
+      section8_mgpT2:              byKey('s8'),
+      section9_fermetureT2:        byKey('s9'),
+      section10_exploitationT3:    byKey('s10'),
+      section11_synthese:          byKey('s11'),
+    };
+  }
+
+  private _parseJson(val: any): any {
+    if (typeof val === 'string') {
+      try { return JSON.parse(val); } catch { return val; }
+    }
+    return val;
+  }
+
+  private _formatStat(labels: Record<string, string>) {
+    return (s: any) => ({
+      status: s.status,
+      label:  labels[s.status] ?? s.status,
+      count:  Number(s.count),
+      latest: s.latest,
+    });
+  }
 }

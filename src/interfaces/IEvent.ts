@@ -1,16 +1,11 @@
-import { Schema, model } from "mongoose";
-
-interface IEvent {
-    EventName: string;
+// src/interfaces/IEvent.ts
+export interface IEvent {
+  id: string;              // CHAR(16)
+  event_name: string;      // VARCHAR(255) NOT NULL
+  created_at: Date;
+  updated_at: Date;
 }
 
-const EventSchema = new Schema<IEvent>({
-    EventName: { type: String, required: true }
-  },
-  {
-    timestamps: true // ⬅️ indispensable
-  }
-);
-
-export const Event = model<IEvent>('Event', EventSchema);
-export type { IEvent };
+export interface ICreateEvent {
+  event_name: string;
+}

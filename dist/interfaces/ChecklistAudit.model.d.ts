@@ -113,6 +113,15 @@ declare const ChecklistAuditSchema: Schema<IChecklistAudit, import("mongoose").M
     }, "id"> & {
         id: string;
     }> | undefined;
+    section1_cadreJuridique?: import("mongoose").SchemaDefinitionProperty<CritereItem[], IChecklistAudit, Document<unknown, {}, IChecklistAudit, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistAudit & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
     subprojet?: import("mongoose").SchemaDefinitionProperty<string, IChecklistAudit, Document<unknown, {}, IChecklistAudit, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistAudit & Required<{
@@ -123,15 +132,6 @@ declare const ChecklistAuditSchema: Schema<IChecklistAudit, import("mongoose").M
         id: string;
     }> | undefined;
     auditeurs?: import("mongoose").SchemaDefinitionProperty<string, IChecklistAudit, Document<unknown, {}, IChecklistAudit, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistAudit & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    section1_cadreJuridique?: import("mongoose").SchemaDefinitionProperty<CritereItem[], IChecklistAudit, Document<unknown, {}, IChecklistAudit, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistAudit & Required<{
         _id: import("mongoose").Types.ObjectId;
@@ -250,87 +250,6 @@ declare const ChecklistConducteurTravauxSchema: Schema<IChecklistConducteurTrava
     }, "id"> & {
         id: string;
     }> | undefined;
-    subprojet?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    fonction?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    contact?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    lieu?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    signatureAuditeur?: import("mongoose").SchemaDefinitionProperty<string | undefined, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    auditeur?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    personneRencontree?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    entreprise?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
-    dureeEntretien?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
     section1_infoGenerales?: import("mongoose").SchemaDefinitionProperty<QuestionConducteur[], IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
@@ -422,6 +341,87 @@ declare const ChecklistConducteurTravauxSchema: Schema<IChecklistConducteurTrava
         id: string;
     }> | undefined;
     section11_synthese?: import("mongoose").SchemaDefinitionProperty<QuestionConducteur[], IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    subprojet?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    entreprise?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    signatureAuditeur?: import("mongoose").SchemaDefinitionProperty<string | undefined, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    auditeur?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    personneRencontree?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    fonction?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    contact?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    dureeEntretien?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    lieu?: import("mongoose").SchemaDefinitionProperty<string, IChecklistConducteurTravaux, Document<unknown, {}, IChecklistConducteurTravaux, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IChecklistConducteurTravaux & Required<{
         _id: import("mongoose").Types.ObjectId;

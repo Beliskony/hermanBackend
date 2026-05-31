@@ -1,46 +1,51 @@
-import { IPoll } from "../interfaces/IPoll";
-import { Types } from "mongoose";
+import { RowDataPacket } from 'mysql2';
+interface PollRow extends RowDataPacket {
+    id: string;
+    event_id: string;
+    name: string;
+    phone: string;
+    rating: number;
+    feedback: string;
+    submitted_at: Date;
+    event_name?: string;
+}
 export declare class PollService {
-    createNewPoll(eventName: string): Promise<string>;
-    createVote(eventName: string, voteData: Omit<IPoll, 'eventName' | 'submittedAt'>): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
+    createNewPoll(eventName: string): Promise<{
         id: string;
-    }>;
-    getAll(): Promise<(import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
-    getByEventName(eventName: string): Promise<(import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
-    getAllEventNames(): Promise<{
-        _id: any;
-        name: any;
-        voteCount: any;
-        lastVote: any;
-        createdAt: any;
-        updatedAt: any;
-    }[]>;
-    deleteVote(id: string): Promise<import("mongoose").Document<unknown, {}, IPoll, {}, import("mongoose").DefaultSchemaOptions> & IPoll & {
-        _id: Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
-        id: string;
-    }>;
-    deleteEvent(eventName: string): Promise<{
         eventName: string;
-        deletedCount: number;
+    }>;
+    createVote(eventId: string, voteData: {
+        name: string;
+        phone: string;
+        rating: number;
+        feedback: string;
+    }): Promise<{
+        submittedAt: Date;
+        name: string;
+        phone: string;
+        rating: number;
+        feedback: string;
+        id: string;
+        eventId: string;
+    }>;
+    getAll(): Promise<PollRow[]>;
+    getByEventId(eventId: string): Promise<PollRow[]>;
+    getAllEventNames(): Promise<{
+        id: string;
+        name: string;
+        nb_reponses: number;
+        note_moyenne: number | null;
+        note_min: number | null;
+        note_max: number | null;
+    }[]>;
+    deleteVote(id: string): Promise<{
+        deleted: boolean;
+        id: string;
+    }>;
+    deleteEventById(eventId: string): Promise<{
+        eventId: string;
+        deletedEvent: boolean;
     }>;
 }
+export {};
 //# sourceMappingURL=poll.service.d.ts.map

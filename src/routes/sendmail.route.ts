@@ -17,8 +17,8 @@ SendContactMailrouter.post('/contactMail', async (req: Request, res: Response) =
 
   try {
     await Promise.all([
-      MailService.sendContactConfirmation(form),
       MailService.sendContactNotificationToAdmin(form),
+      MailService.sendContactConfirmation(form)
     ]);
 
     return res.status(200).json({

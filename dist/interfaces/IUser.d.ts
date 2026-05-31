@@ -1,18 +1,18 @@
-interface IUser {
+export interface IUser {
+    id: string;
     username: string;
     email: string;
-    phoneNumber: string;
+    phone_number: string;
     password: string;
     role: 'admin' | 'user';
-    createdAt?: Date;
-    updatedAt?: Date;
+    created_at: Date;
+    updated_at: Date;
 }
-export declare const User: import("mongoose").Model<IUser, {}, {}, {}, import("mongoose").Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & {
-    _id: import("mongoose").Types.ObjectId;
-} & {
-    __v: number;
-} & {
-    id: string;
-}, any, IUser>;
-export type { IUser };
+export interface ICreateUser {
+    username: string;
+    email: string;
+    phone_number: string;
+    password: string;
+    role?: 'admin' | 'user';
+}
 //# sourceMappingURL=IUser.d.ts.map

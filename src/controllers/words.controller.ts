@@ -1,25 +1,35 @@
 import { Request, Response } from 'express';
-import { FormData } from '../interfaces/FormData.model';
-import { ChecklistAudit, ChecklistConducteurTravaux } from '../interfaces/ChecklistAudit.model';
-import { GuideEntretien } from '../interfaces/GuideEntretien.model';
+import { pool } from '../config/databaseConnect';
 import { 
   generateFormDataWordDocument,
   exportChecklistAuditWord,
   exportChecklistConducteurWord,
   exportGuideEntretienWord
 } from '../services/words.service';
+import { FormService } from '../services/form.service';
+
+const formService = new FormService();
 
 export class WordExportController {
-  
+
+  /**
+   * Extrait l'ID des paramètres de requête
+   */
+  private getParamId(req: Request): string {
+    const { id } = req.params;
+    // Si c'est un tableau, prendre le premier élément, sinon utiliser la chaîne
+    return Array.isArray(id) ? id[0] : id;
+  }
+
   /**
    * Exporter un formulaire APES en Word
    * GET /words/form/:id/export
    */
   async exportFormToWord(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = this.getParamId(req);  // ← Correction ici
 
-      const formData = await FormData.findById(id);
+      const formData = await formService.getFormById(id);
       if (!formData) {
         res.status(404).json({ message: 'Formulaire APES non trouvé' });
         return;
@@ -27,8 +37,8 @@ export class WordExportController {
 
       const buffer = await generateFormDataWordDocument(formData);
 
-      const projectName = formData.projectInfo?.projectName || 'projet';
-      const filename = `apes-${projectName.replace(/\s+/g, '_')}.docx`;
+      const projectName = formData.project_name || 'projet';
+      const filename = `apes-${String(projectName).replace(/\s+/g, '_')}.docx`;
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -45,18 +55,18 @@ export class WordExportController {
    */
   async exportChecklistAuditToWord(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = this.getParamId(req);  // ← Correction ici
 
-      const checklist = await ChecklistAudit.findById(id);
+      const checklist = await formService.getChecklistAuditById(id);
       if (!checklist) {
-        res.status(404).json({ message: 'Checklist d\'audit non trouvée' });
+        res.status(404).json({ message: "Checklist d'audit non trouvée" });
         return;
       }
 
       const buffer = await exportChecklistAuditWord(checklist);
 
       const subprojet = checklist.subprojet || 'checklist';
-      const filename = `checklist-audit-${subprojet.replace(/\s+/g, '_')}.docx`;
+      const filename = `checklist-audit-${String(subprojet).replace(/\s+/g, '_')}.docx`;
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -73,9 +83,9 @@ export class WordExportController {
    */
   async exportChecklistConducteurToWord(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = this.getParamId(req);  // ← Correction ici
 
-      const checklist = await ChecklistConducteurTravaux.findById(id);
+      const checklist = await formService.getChecklistConducteurById(id);
       if (!checklist) {
         res.status(404).json({ message: 'Checklist conducteur non trouvée' });
         return;
@@ -84,7 +94,7 @@ export class WordExportController {
       const buffer = await exportChecklistConducteurWord(checklist);
 
       const subprojet = checklist.subprojet || 'conducteur';
-      const filename = `checklist-conducteur-${subprojet.replace(/\s+/g, '_')}.docx`;
+      const filename = `checklist-conducteur-${String(subprojet).replace(/\s+/g, '_')}.docx`;
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -101,26 +111,26 @@ export class WordExportController {
    */
   async exportGuideEntretienToWord(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params;
+      const id = this.getParamId(req);  // ← Correction ici
 
-      const guide = await GuideEntretien.findById(id);
+      const guide = await formService.getGuideEntretienById(id);
       if (!guide) {
-        res.status(404).json({ message: 'Guide d\'entretien non trouvé' });
+        res.status(404).json({ message: "Guide d'entretien non trouvé" });
         return;
       }
 
       const buffer = await exportGuideEntretienWord(guide);
 
       const subprojet = guide.subprojet || 'guide';
-      const guideType = guide.guideType || 'entretien';
-      const filename = `guide-${guideType}-${subprojet.replace(/\s+/g, '_')}.docx`;
+      const guideType = guide.guide_type || 'entretien';
+      const filename = `guide-${guideType}-${String(subprojet).replace(/\s+/g, '_')}.docx`;
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(buffer);
     } catch (error) {
       console.error('[WordExport] Erreur export Guide Entretien:', error);
-      res.status(500).json({ message: 'Erreur lors de la génération du document Word Guide d\'entretien' });
+      res.status(500).json({ message: "Erreur lors de la génération du document Word Guide d'entretien" });
     }
   }
 }

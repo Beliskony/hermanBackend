@@ -1,26 +1,24 @@
-import { IUser } from "../interfaces/IUser";
+import { IUser } from '../interfaces/IUser';
 export declare class UserService {
     private JWT_SECRET;
     private JWT_EXPIRES_IN;
     private otpStore;
     constructor();
-    register(user: IUser): Promise<import("mongoose").Document<unknown, {}, IUser, {}, import("mongoose").DefaultSchemaOptions> & IUser & {
-        _id: import("mongoose").Types.ObjectId;
-    } & {
-        __v: number;
-    } & {
+    register(user: IUser): Promise<{
         id: string;
+        username: string;
+        email: string;
+        role: "user" | "admin";
     }>;
     login(email: string, password: string): Promise<{
         user: {
+            id: string;
             username: string;
             email: string;
-            phoneNumber: string;
-            role: "admin" | "user";
-            createdAt?: Date;
-            updatedAt?: Date;
-            _id: import("mongoose").Types.ObjectId;
-            __v: number;
+            phone_number: string;
+            role: "user" | "admin";
+            created_at: Date;
+            updated_at: Date;
         };
         token: string;
     }>;

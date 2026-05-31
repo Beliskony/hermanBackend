@@ -1,75 +1,74 @@
-import { Event, IEvent } from "../interfaces/IEvent";
-import { Types } from "mongoose";
+// ─────────────────────────────────────────────────────────────────────────────
+//  event.service.ts  —  MySQL version
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { RowDataPacket, ResultSetHeader } from 'mysql2';  // ← AJOUTER CET IMPORT
+import { pool }  from '../config/databaseConnect';
+import { newId } from '../utils/id';
+
+// CORRECTION : Étendre RowDataPacket
+interface EventRow extends RowDataPacket {
+  id:         string;
+  event_name: string;
+  created_at: Date;
+  updated_at: Date;
+}
 
 export class EventService {
 
-  // ---------------- CREATE ----------------
-  async createEvent(data: IEvent) {
-    try {
-      const event = new Event(data);
-      await event.save();
-      return event;
-    } catch (error) {
-      console.error("Create Event Error:", error);
-      throw new Error("Unable to create event");
-    }
-  }
+  // ── CREATE ─────────────────────────────────────────────────────────────────
+  async createEvent(eventName: string) {
+    const id = newId();
 
-  // ---------------- GET ALL ----------------
-  async getAllEvents() {
-    try {
-      return await Event.find().sort({ createdAt: -1 });
-    } catch (error) {
-      console.error("Get All Events Error:", error);
-      throw new Error("Unable to fetch events");
-    }
-  }
-
- // -------- GET LATEST EVENT --------
-  async getLatestEvent() {
-    const event = await Event
-      .findOne()
-      .sort({ createdAt: -1 }); // ⬅️ le plus récent
-
-    if (!event) {
-      throw new Error("No event found");
-    }
-
-    return event;
-  }
-
-
-  // ---------------- UPDATE ----------------
-  async updateEvent(eventId: string, data: Partial<IEvent>) {
-    if (!Types.ObjectId.isValid(eventId)) {
-      throw new Error("Invalid event ID");
-    }
-
-    const updatedEvent = await Event.findByIdAndUpdate(
-      eventId,
-      data,
-      { new: true, runValidators: true }
+    await pool.query(
+      'CALL sp_create_event(?,?)',
+      [id, eventName]
     );
 
-    if (!updatedEvent) {
-      throw new Error("Event not found");
-    }
-
-    return updatedEvent;
+    return { id, eventName };
   }
 
-  // ---------------- DELETE ----------------
+  // ── GET ALL ────────────────────────────────────────────────────────────────
+  async getAllEvents() {
+    const [rows] = await pool.query<EventRow[]>(
+      'SELECT * FROM events ORDER BY created_at DESC'
+    );
+    return rows;
+  }
+
+  // ── GET LATEST ─────────────────────────────────────────────────────────────
+  async getLatestEvent() {
+    const [rows] = await pool.query<EventRow[]>(
+      'SELECT * FROM events ORDER BY created_at DESC LIMIT 1'
+    );
+
+    if (rows.length === 0) throw new Error('No event found');
+    return rows[0];
+  }
+
+  // ── UPDATE ─────────────────────────────────────────────────────────────────
+  async updateEvent(eventId: string, eventName: string) {
+    // CORRECTION : Utiliser ResultSetHeader au lieu de any
+    const [result] = await pool.query<ResultSetHeader>(
+      'UPDATE events SET event_name = ?, updated_at = NOW() WHERE id = ?',
+      [eventName, eventId]
+    );
+
+    if (result.affectedRows === 0) throw new Error('Event not found');
+
+    return { id: eventId, eventName };
+  }
+
+  // ── DELETE ─────────────────────────────────────────────────────────────────
   async deleteEvent(eventId: string) {
-    if (!Types.ObjectId.isValid(eventId)) {
-      throw new Error("Invalid event ID");
-    }
+    // CORRECTION : Utiliser ResultSetHeader au lieu de any
+    const [result] = await pool.query<ResultSetHeader>(
+      'DELETE FROM events WHERE id = ?',
+      [eventId]
+    );
 
-    const deletedEvent = await Event.findByIdAndDelete(eventId);
+    if (result.affectedRows === 0) throw new Error('Event not found');
 
-    if (!deletedEvent) {
-      throw new Error("Event not found");
-    }
-
-    return deletedEvent;
+    return { deleted: true, id: eventId };
   }
 }

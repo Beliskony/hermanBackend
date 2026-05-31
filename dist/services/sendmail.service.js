@@ -15,15 +15,16 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const nodemailer_1 = __importDefault(require("nodemailer"));
 // ─── Config ──────────────────────────────────────────────────────────────────
 const mailConfig = {
-    host: process.env.MAIL_HOST || 'smtp.gmail.com',
-    port: Number(process.env.MAIL_PORT) || 465,
+    host: process.env.MAIL_HOST,
+    port: Number(process.env.MAIL_PORT),
     secure: true,
-    user: process.env.MAIL_USER || '',
-    password: process.env.MAIL_PASSWORD || '',
-    from: `"Assistance Conseils Environnement" <${process.env.MAIL_USER}>`,
-    adminTo: process.env.MAIL_ADMIN || process.env.MAIL_USER || '',
+    user: process.env.MAIL_USER,
+    password: process.env.MAIL_PASSWORD,
+    from: '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
+    adminTo: 'hermanassoua@acenviro.pro',
 };
 // ─── Couleurs urgence ─────────────────────────────────────────────────────────
+// Clés alignées avec les <option value="..."> du formulaire front
 const urgencyStyle = {
     urgent: { color: '#8B0000', bg: '#FCE4EC', label: 'Urgent' },
     élevé: { color: '#C0392B', bg: '#FFEBEE', label: 'Court terme' },
@@ -79,7 +80,7 @@ class MailService {
             yield this.send({
                 to: form.email,
                 replyTo: mailConfig.adminTo,
-                subject: 'ACENVIRO - Nous avons bien reçu votre demande',
+                subject: 'ACENVIRO - Assistance Conseils Environnement, Nous avons bien reçu votre demande',
                 html: this.wrapTemplate({
                     title: 'Demande reçue',
                     color: '#1A7A4A',
@@ -106,7 +107,7 @@ class MailService {
               Niveau d'urgence : ${urgency.label}
             </div>
           </div>
-          <div style="background:#E8F5E9;border-left:4px solid #1A7A4A;padding:12px 16px;border-radius:0 4px 4px 0;">
+          <div style="background:#E8F5E9;border-left:4px solid #1A7A4A;padding:12px 16px;border-radius:4px;">
             <p style="margin:0;color:#1A7A4A;font-size:13px;line-height:1.6;">
               Un membre de notre équipe vous contactera prochainement
               à l'adresse <strong>${form.email}</strong> ou au <strong>${form.phone || 'numéro renseigné'}</strong>.
@@ -169,39 +170,25 @@ class MailService {
         return __awaiter(this, void 0, void 0, function* () {
             const { to, userName, otpCode, expiresIn } = params;
             const digits = otpCode.split('').map(d => `
-      <td style="padding:0 4px;">
-        <div style="width:48px;height:60px;line-height:60px;text-align:center;font-size:26px;font-weight:500;color:#1B3A5C;background:#EEF4FB;border:1.5px solid #2E75B6;border-radius:10px;">
-          ${d}
-        </div>
-      </td>
+      <span style="display:inline-block;width:44px;height:56px;line-height:56px;text-align:center;font-size:28px;font-weight:bold;color:#1B3A5C;background:#F0F6FB;border:2px solid #2E75B6;border-radius:8px;margin:0 4px;">${d}</span>
     `).join('');
             yield this.send({
                 to,
-                subject: 'ACENVIRO - Votre code de réinitialisation',
+                subject: 'ACENVIRO - Assistance Conseils Environnement, Votre code de réinitialisation',
                 html: this.wrapTemplate({
                     title: 'Réinitialisation du mot de passe',
                     color: '#1B3A5C',
                     content: `
-          <p style="font-size:15px;color:#333;margin:0 0 10px;">Bonjour <strong>${userName}</strong>,</p>
-          <p style="font-size:14px;color:#555;line-height:1.6;margin:0 0 28px;">
-            Vous avez demandé la réinitialisation de votre mot de passe.<br/>
-            Saisissez le code ci-dessous dans l'application :
-          </p>
-
-          <table cellpadding="0" cellspacing="0" style="margin:0 auto 24px;">
-            <tr>${digits}</tr>
-          </table>
-
-          <div style="display:table;margin:0 auto 24px;background:#F4F6F9;border:0.5px solid #DEE2E6;border-radius:20px;padding:8px 20px;">
-            <p style="margin:0;font-size:13px;color:#555;">
-              Ce code expire dans <strong style="color:#333;">${expiresIn}</strong>
-            </p>
+          <p style="font-size:15px;color:#333;">Bonjour <strong>${userName}</strong>,</p>
+          <p style="color:#555;line-height:1.6;">Vous avez demandé la réinitialisation de votre mot de passe.<br/>Saisissez le code ci-dessous dans l'application :</p>
+          <div style="text-align:center;margin:36px 0;">${digits}</div>
+          <div style="text-align:center;margin-bottom:28px;">
+            <span style="display:inline-block;color:#000000;padding:8px 20px;border-radius:20px;font-size:13px;border:1px solid #FFEEBA;">
+               Ce code expire dans <strong>${expiresIn}</strong>
+            </span>
           </div>
-
-          <div style="background:#FFF0F0;border-left:3px solid #C0392B;padding:12px 16px;border-radius:0 6px 6px 0;">
-            <p style="margin:0;font-size:13px;color:#C0392B;line-height:1.5;">
-              Si vous n'avez pas demandé cette réinitialisation, ignorez cet email. Ne partagez jamais ce code.
-            </p>
+          <div style="background:#FFF0F0;border-left:4px solid #C0392B;padding:12px 16px;border-radius:4px;">
+            <p style="margin:0;color:#C0392B;font-size:13px;"> Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.</p>
           </div>
         `,
                     footer: 'Ne partagez jamais ce code avec quiconque. Notre équipe ne vous le demandera jamais.',
@@ -227,14 +214,14 @@ class MailService {
           <tr><td align="center">
             <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 4px 16px rgba(0,0,0,0.08);">
               <tr><td style="background:${p.color};padding:28px 32px;">
-                <h1 style="margin:0;color:#fff;font-size:20px;font-weight:500;">${p.title}</h1>
-                <p style="margin:6px 0 0;color:rgba(255,255,255,0.6);font-size:14px;">ACENVIRO — Assistance Conseils Environnement</p>
+                <h1 style="margin:0;color:#fff;font-size:22px;font-weight:bold;">${p.title}</h1>
+                <p style="margin:6px 0 0;color:rgba(255,255,255,0.7);font-size:15px;">ACENVIRO</p>
               </td></tr>
-              <tr><td style="background:#00B0A0;height:3px;"></td></tr>
+              <tr><td style="background:#00B0A0;height:4px;"></td></tr>
               <tr><td style="padding:32px 36px;">${p.content}</td></tr>
               <tr><td style="background:#F8F9FA;padding:20px 36px;border-top:1px solid #E9ECEF;">
                 <p style="margin:0;color:#6C757D;font-size:12px;text-align:center;">${p.footer}</p>
-                <p style="margin:8px 0 0;color:#ADB5BD;font-size:11px;text-align:center;">© ${new Date().getFullYear()} ACENVIRO — Tous droits réservés</p>
+                <p style="margin:8px 0 0;color:#ADB5BD;font-size:11px;text-align:center;">© ${new Date().getFullYear()} Audit APES — Tous droits réservés</p>
               </td></tr>
             </table>
           </td></tr>

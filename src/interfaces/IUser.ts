@@ -1,47 +1,20 @@
-import { Schema, model } from 'mongoose';
-
-interface IUser {
-    username: string;
-    email: string;
-    phoneNumber: string;
-    password: string;
-    role: 'admin' | 'user'
-    createdAt?: Date;
-    updatedAt?: Date;
+// src/interfaces/IUser.ts
+export interface IUser {
+  id: string;              // CHAR(16) - généré par newId()
+  username: string;        // VARCHAR(100) NOT NULL
+  email: string;           // VARCHAR(191) NOT NULL
+  phone_number: string;    // VARCHAR(30) NOT NULL
+  password: string;        // VARCHAR(255) NOT NULL
+  role: 'admin' | 'user';  // ENUM - DÉFAUT 'admin' (à changer en 'user')
+  created_at: Date;        // DATETIME
+  updated_at: Date;        // DATETIME
 }
 
-const userSchema = new Schema<IUser>(
-    {
-        username: {
-            type: String,
-            required: true,
-            unique: true,
-            trim: true,
-        },
-        email: {
-            type: String,
-            required: true,
-            unique: true,
-            match: /.+\@.+\..+/,
-        },
-        phoneNumber: {
-            type: String,
-            required: true,
-            unique: true,
-        },
-        password: {
-            type: String,
-            required: true,
-            minlength: 6,
-        },
-        role: {
-            type: String,
-            enum: ["admin", "user"],
-            default: "user"
-        }
-    },
-    { timestamps: true }
-);
-
-export const User = model<IUser>('User', userSchema);
-export type { IUser };
+// Pour création
+export interface ICreateUser {
+  username: string;
+  email: string;
+  phone_number: string;
+  password: string;
+  role?: 'admin' | 'user';
+}

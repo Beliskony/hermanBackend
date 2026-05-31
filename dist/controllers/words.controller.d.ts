@@ -1,6 +1,10 @@
 import { Request, Response } from 'express';
 export declare class WordExportController {
     /**
+     * Extrait l'ID des paramètres de requête
+     */
+    private getParamId;
+    /**
      * Exporter un formulaire APES en Word
      * GET /words/form/:id/export
      */

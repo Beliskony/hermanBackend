@@ -17,13 +17,14 @@ export const createNewPollEvent = async (req: Request, res: Response) => {
       });
     }
     
-    const newEventName = await pollService.createNewPoll(eventName);
+    const newEvent = await pollService.createNewPoll(eventName);
     
     res.status(201).json({
       success: true,
-      message: `🎉 Nouveau sondage créé: "${newEventName}"`,
+      message: `🎉 Nouveau sondage créé: "${newEvent.eventName}"`,
       data: {
-        eventName: newEventName,
+        id: newEvent.id,
+        eventName: newEvent.eventName,
         createdAt: new Date()
       }
     });
@@ -39,35 +40,39 @@ export const createNewPollEvent = async (req: Request, res: Response) => {
 // 2. Soumettre un vote (pour utilisateurs lambda)
 export const createPoll = async (req: Request, res: Response) => {
   try {
-    const { eventName, name, phone, rating, feedback } = req.body;
+    const { eventId, name, phone, rating, feedback } = req.body;
     
-    // Valider eventName (peut être string ou string[])
-    let validatedEventName = eventName;
-    if (Array.isArray(validatedEventName)) {
-      validatedEventName = validatedEventName[0];
+    // CORRECTION: Utiliser eventId au lieu de eventName
+    let validatedEventId = eventId;
+    if (Array.isArray(validatedEventId)) {
+      validatedEventId = validatedEventId[0];
     }
     
     // Validation
-    if (!validatedEventName || !name || !phone || !rating) {
+    if (!validatedEventId || !name || !phone || !rating) {
       return res.status(400).json({
         success: false,
-        message: 'Tous les champs sont requis'
+        message: 'Tous les champs (eventId, name, phone, rating) sont requis'
       });
     }
     
-    const poll = await pollService.createVote(validatedEventName as string, {
+    const poll = await pollService.createVote(validatedEventId as string, {
       name: String(name),
       phone: String(phone),
       rating: Number(rating),
       feedback: feedback ? String(feedback) : ''
     });
     
+    // CORRECTION: Récupérer l'eventName pour l'affichage
+    const event = await pollService.getByEventId(validatedEventId as string);
+    const eventName = event.length > 0 ? event[0].event_name : validatedEventId;
+    
     res.status(201).json({
       success: true,
-      message: `✅ Merci pour votre évaluation de "${validatedEventName}" !`,
+      message: `✅ Merci pour votre évaluation !`,
       data: {
-        id: poll._id,
-        eventName: poll.eventName,
+        id: poll.id,
+        eventId: poll.eventId,
         rating: poll.rating,
         submittedAt: poll.submittedAt
       }
@@ -100,20 +105,25 @@ export const getPolls = async (req: Request, res: Response) => {
   }
 };
 
-// 4. Récupérer les évaluations par nom d'événement (admin)
+// 4. Récupérer les évaluations par ID d'événement (admin)
+// CORRECTION: Changer de eventName à eventId
 export const getPollsByEvent = async (req: Request, res: Response) => {
   try {
-    let { eventName } = req.params;
+    let { eventId } = req.params;
     
-    // Valider eventName
-    if (Array.isArray(eventName)) {
-      eventName = eventName[0];
+    // Valider eventId
+    if (Array.isArray(eventId)) {
+      eventId = eventId[0];
     }
     
     // Décoder l'URL
-    eventName = decodeURIComponent(eventName as string);
+    eventId = decodeURIComponent(eventId as string);
     
-    const votes = await pollService.getByEventName(eventName);
+    // CORRECTION: Utiliser getByEventId au lieu de getByEventName
+    const votes = await pollService.getByEventId(eventId);
+    
+    // Récupérer le nom de l'événement
+    const eventName = votes.length > 0 ? votes[0].event_name : eventId;
     
     // Calculer les stats
     const stats = votes.length > 0 ? {
@@ -126,6 +136,7 @@ export const getPollsByEvent = async (req: Request, res: Response) => {
     
     res.json({
       success: true,
+      eventId,
       eventName,
       stats,
       data: votes,
@@ -185,22 +196,24 @@ export const getAllEvents = async (req: Request, res: Response) => {
 };
 
 // 7. Supprimer un événement complet (admin)
+// CORRECTION: Changer le paramètre de eventName à eventId
 export const deleteEvent = async (req: Request, res: Response) => {
   try {
-    let { eventName } = req.params;
+    let { eventId } = req.params;
     
-    if (Array.isArray(eventName)) {
-      eventName = eventName[0];
+    if (Array.isArray(eventId)) {
+      eventId = eventId[0];
     }
     
     // Décoder l'URL
-    eventName = decodeURIComponent(eventName as string);
+    eventId = decodeURIComponent(eventId as string);
     
-    const result = await pollService.deleteEvent(eventName);
+    // CORRECTION: Utiliser deleteEventById au lieu de deleteEvent
+    const result = await pollService.deleteEventById(eventId);
     
     res.json({
       success: true,
-      message: `Événement "${eventName}" supprimé avec ${result.deletedCount} vote(s)`,
+      message: result.deletedEvent ? `Événement supprimé avec succès` : `Événement non trouvé`,
       data: result
     });
     

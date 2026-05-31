@@ -24,7 +24,8 @@ class EventController {
                         message: "EventName is required"
                     });
                 }
-                const event = yield eventService.createEvent({ EventName });
+                // CORRECTION : Passer directement le nom (string), pas un objet
+                const event = yield eventService.createEvent(EventName);
                 return res.status(201).json({
                     success: true,
                     message: "Event created successfully",
@@ -62,9 +63,10 @@ class EventController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const event = yield eventService.getLatestEvent();
+                // CORRECTION : Adapter les propriétés retournées
                 return res.status(200).json({
-                    _id: event._id,
-                    name: event.EventName
+                    id: event.id, // Changé de _id à id
+                    name: event.event_name // Changé de EventName à event_name
                 });
             }
             catch (error) {
@@ -90,7 +92,8 @@ class EventController {
                         message: "EventName is required"
                     });
                 }
-                const updatedEvent = yield eventService.updateEvent(id, { EventName });
+                // CORRECTION : Passer l'id et le nom comme paramètres séparés
+                const updatedEvent = yield eventService.updateEvent(id, EventName);
                 return res.status(200).json({
                     success: true,
                     message: "Event updated successfully",

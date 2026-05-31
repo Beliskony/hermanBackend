@@ -82,20 +82,6 @@ declare const GenderAssessmentSchema: Schema<IGenderAssessment, import("mongoose
     }, "id"> & {
         id: string;
     }> | undefined;
-    quantitativeData?: import("mongoose").SchemaDefinitionProperty<Record<string, {
-        women: number;
-        men: number;
-        other: number;
-        source: string;
-    }>, IGenderAssessment, Document<unknown, {}, IGenderAssessment, {
-        id: string;
-    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGenderAssessment & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    }, "id"> & {
-        id: string;
-    }> | undefined;
     consultations?: import("mongoose").SchemaDefinitionProperty<{
         group: string;
         sessions: number;
@@ -141,6 +127,20 @@ declare const GenderAssessmentSchema: Schema<IGenderAssessment, import("mongoose
         responsible: string;
         deadline: string;
     }[], IGenderAssessment, Document<unknown, {}, IGenderAssessment, {
+        id: string;
+    }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGenderAssessment & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    }, "id"> & {
+        id: string;
+    }> | undefined;
+    quantitativeData?: import("mongoose").SchemaDefinitionProperty<Record<string, {
+        women: number;
+        men: number;
+        other: number;
+        source: string;
+    }>, IGenderAssessment, Document<unknown, {}, IGenderAssessment, {
         id: string;
     }, import("mongoose").ResolveSchemaOptions<import("mongoose").DefaultSchemaOptions>> & Omit<IGenderAssessment & Required<{
         _id: import("mongoose").Types.ObjectId;

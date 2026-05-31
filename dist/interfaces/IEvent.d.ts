@@ -1,12 +1,10 @@
-interface IEvent {
-    EventName: string;
-}
-export declare const Event: import("mongoose").Model<IEvent, {}, {}, {}, import("mongoose").Document<unknown, {}, IEvent, {}, import("mongoose").DefaultSchemaOptions> & IEvent & {
-    _id: import("mongoose").Types.ObjectId;
-} & {
-    __v: number;
-} & {
+export interface IEvent {
     id: string;
-}, any, IEvent>;
-export type { IEvent };
+    event_name: string;
+    created_at: Date;
+    updated_at: Date;
+}
+export interface ICreateEvent {
+    event_name: string;
+}
 //# sourceMappingURL=IEvent.d.ts.map

@@ -1,4 +1,13 @@
 "use strict";
+// ─────────────────────────────────────────────────────────────────────────────
+//  poll.service.ts  —  MySQL version
+//
+//  Différences vs Mongoose :
+//  • eventName (string libre) → event_id (CHAR(16) FK vers events)
+//    Le frontend passe désormais un eventId, pas un nom en clair.
+//  • L'agrégation $lookup → simple JOIN MySQL
+//  • Pas de doublon-check par nom : géré côté events (unique event_name)
+// ─────────────────────────────────────────────────────────────────────────────
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -10,139 +19,89 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.PollService = void 0;
-const IPoll_1 = require("../interfaces/IPoll");
-const IEvent_1 = require("../interfaces/IEvent");
-const mongoose_1 = require("mongoose");
+const databaseConnect_1 = require("../config/databaseConnect");
+const id_1 = require("../utils/id");
 class PollService {
-    // Admin: Créer un nouveau sondage (juste un nouveau nom)
+    // ── CRÉER UN ÉVÉNEMENT (ex-createNewPoll) ─────────────────────────────────
     createNewPoll(eventName) {
         return __awaiter(this, void 0, void 0, function* () {
-            // Validation simple
             if (!eventName || typeof eventName !== 'string') {
-                throw new Error("Le nom doit être une chaîne de caractères");
+                throw new Error('Le nom doit être une chaîne de caractères');
             }
             const trimmedName = eventName.trim();
-            // Option: Vérifier si le nom existe déjà (si vous voulez éviter les doublons)
-            const existing = yield IPoll_1.Poll.findOne({ eventName: trimmedName });
-            if (existing) {
+            // CORRECTION : Utiliser RowDataPacket[]
+            const [existing] = yield databaseConnect_1.pool.query('SELECT id FROM events WHERE event_name = ? LIMIT 1', [trimmedName]);
+            if (existing.length > 0) {
                 throw new Error(`Un sondage "${trimmedName}" existe déjà`);
             }
-            // Rien à sauvegarder ! Juste retourner le nom
-            console.log(`Nouveau sondage créé: "${trimmedName}"`);
-            return trimmedName;
+            const id = (0, id_1.newId)();
+            yield databaseConnect_1.pool.query('CALL sp_create_event(?,?)', [id, trimmedName]);
+            return { id, eventName: trimmedName };
         });
     }
-    // Utilisateur: Soumettre un vote POUR UN ÉVÉNEMENT SPÉCIFIQUE
-    createVote(eventName, voteData) {
+    // ── SOUMETTRE UN VOTE ─────────────────────────────────────────────────────
+    createVote(eventId, voteData) {
         return __awaiter(this, void 0, void 0, function* () {
-            // Validation
-            if (!eventName) {
-                throw new Error("Nom d'événement requis");
-            }
-            const poll = new IPoll_1.Poll(Object.assign(Object.assign({}, voteData), { eventName, submittedAt: new Date() }));
-            yield poll.save();
-            return poll;
+            if (!eventId)
+                throw new Error("ID d'événement requis");
+            const id = (0, id_1.newId)();
+            yield databaseConnect_1.pool.query('CALL sp_create_poll(?,?,?,?,?,?)', [id, eventId, voteData.name, voteData.phone, voteData.rating, voteData.feedback]);
+            return Object.assign(Object.assign({ id, eventId }, voteData), { submittedAt: new Date() });
         });
     }
-    // Récupérer tous les sondages (tous événements)
+    // ── TOUS LES VOTES ────────────────────────────────────────────────────────
     getAll() {
         return __awaiter(this, void 0, void 0, function* () {
-            return IPoll_1.Poll.find().sort({ submittedAt: -1 });
+            const [rows] = yield databaseConnect_1.pool.query(`SELECT p.*, e.event_name
+       FROM polls p
+       JOIN events e ON e.id = p.event_id
+       ORDER BY p.submitted_at DESC`);
+            return rows;
         });
     }
-    // Récupérer les votes d'un événement spécifique
-    getByEventName(eventName) {
+    // ── VOTES D'UN ÉVÉNEMENT ──────────────────────────────────────────────────
+    getByEventId(eventId) {
         return __awaiter(this, void 0, void 0, function* () {
-            return IPoll_1.Poll.find({ eventName }).sort({ submittedAt: -1 });
+            const [rows] = yield databaseConnect_1.pool.query(`SELECT p.*, e.event_name
+       FROM polls p
+       JOIN events e ON e.id = p.event_id
+       WHERE p.event_id = ?
+       ORDER BY p.submitted_at DESC`, [eventId]);
+            return rows;
         });
     }
-    // Liste de tous les événements (noms uniques)
-    // Liste de tous les événements (noms uniques) avec leurs statistiques
+    // ── LISTE DES ÉVÉNEMENTS AVEC STATS ───────────────────────────────────────
+    // Correspond à l'ancienne getAllEventNames() — utilise la vue v_poll_stats
     getAllEventNames() {
         return __awaiter(this, void 0, void 0, function* () {
-            try {
-                console.log("Début de getAllEventNames...");
-                // OPTION 1: Aggregation simple et testée
-                const events = yield IEvent_1.Event.aggregate([
-                    {
-                        $lookup: {
-                            from: "polls", // Collection Poll
-                            localField: "_id", // _id de Event
-                            foreignField: "eventName", // eventName dans Poll
-                            as: "votes"
-                        }
-                    },
-                    {
-                        $addFields: {
-                            voteCount: { $size: "$votes" },
-                            lastVote: {
-                                $cond: {
-                                    if: { $gt: [{ $size: "$votes" }, 0] },
-                                    then: { $max: "$votes.submittedAt" },
-                                    else: null
-                                }
-                            }
-                        }
-                    },
-                    {
-                        $project: {
-                            _id: 1,
-                            name: "$EventName", // Important: EventName avec majuscule
-                            EventName: 1,
-                            voteCount: 1,
-                            lastVote: 1,
-                            createdAt: 1,
-                            updatedAt: 1
-                        }
-                    },
-                    {
-                        $sort: {
-                            lastVote: -1,
-                            createdAt: -1
-                        }
-                    }
-                ]);
-                console.log(`Nombre d'événements trouvés: ${events.length}`);
-                console.log("Événements:", JSON.stringify(events, null, 2));
-                // Formatage pour le frontend
-                const formattedEvents = events.map(event => ({
-                    _id: event._id.toString(),
-                    name: event.name || event.EventName || "Sans nom",
-                    voteCount: event.voteCount || 0,
-                    lastVote: event.lastVote ? event.lastVote.toISOString() : null,
-                    createdAt: event.createdAt ? event.createdAt.toISOString() : null,
-                    updatedAt: event.updatedAt ? event.updatedAt.toISOString() : null
-                }));
-                console.log("Événements formatés:", formattedEvents);
-                return formattedEvents;
-            }
-            catch (error) {
-                console.error("Erreur dans getAllEventNames:", error);
-                throw error;
-            }
+            const [rows] = yield databaseConnect_1.pool.query('SELECT * v_poll_stats_by_event ORDER BY event_id');
+            return rows.map(r => ({
+                id: r.event_id,
+                name: r.event_name,
+                nb_reponses: r.total_responses,
+                note_moyenne: r.avg_rating,
+                note_min: r.min_rating,
+                note_max: r.max_rating
+            }));
         });
     }
-    // Supprimer un vote
+    // ── SUPPRIMER UN VOTE ─────────────────────────────────────────────────────
     deleteVote(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            if (!mongoose_1.Types.ObjectId.isValid(id)) {
-                throw new Error("ID invalide");
-            }
-            const deleted = yield IPoll_1.Poll.findByIdAndDelete(id);
-            if (!deleted) {
-                throw new Error("Vote non trouvé");
-            }
-            return deleted;
+            // CORRECTION : Utiliser ResultSetHeader
+            const [result] = yield databaseConnect_1.pool.query('DELETE FROM polls WHERE id = ?', [id]);
+            if (result.affectedRows === 0)
+                throw new Error('Vote non trouvé');
+            return { deleted: true, id };
         });
     }
-    // Supprimer tous les votes d'un événement
-    deleteEvent(eventName) {
+    // ── SUPPRIMER UN ÉVÉNEMENT ET TOUS SES VOTES (CASCADE) ───────────────────
+    // La FK ON DELETE CASCADE s'occupe des polls automatiquement
+    deleteEventById(eventId) {
         return __awaiter(this, void 0, void 0, function* () {
-            const result = yield IPoll_1.Poll.deleteMany({ eventName });
-            return {
-                eventName,
-                deletedCount: result.deletedCount
-            };
+            // CORRECTION : Utiliser ResultSetHeader
+            const [result] = yield databaseConnect_1.pool.query('DELETE FROM events WHERE id = ?', [eventId]);
+            return { eventId, deletedEvent: result.affectedRows > 0 };
         });
     }
 }

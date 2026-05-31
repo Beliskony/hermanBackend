@@ -12,29 +12,47 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const mongoose_1 = __importDefault(require("mongoose"));
+exports.pool = void 0;
+exports.testDbConnection = testDbConnection;
+const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-const connectDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    const DATABASE_URL = process.env.DATABASE_URL;
-    const DATABASE_NAME = process.env.DATABASE_NAME;
-    try {
-        yield mongoose_1.default.connect(DATABASE_URL, {
-            dbName: DATABASE_NAME,
-            family: 4, // Force IPv4
-            serverSelectionTimeoutMS: 10000, // Timeout 10 secondes
-            socketTimeoutMS: 45000,
-            connectTimeoutMS: 10000,
-            tls: true, // FORCE SSL/TLS (essentiel!)
-            retryWrites: true,
-            retryReads: true
-        });
-    }
-    catch (error) {
-        console.log("❌ Erreur de connexion à MongoDB:", error);
-        // Ne pas faire process.exit(1) ici, laissez l'application réessayer
-        throw error;
-    }
+exports.pool = promise_1.default.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: Number(process.env.DB_PORT) || 3306,
+    waitForConnections: true,
+    connectionLimit: 5, // ⬇ réduit pour LWS (ressources limitées)
+    queueLimit: 0,
+    connectTimeout: 30000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    ssl: undefined,
 });
-exports.default = connectDB;
+// ✅ Test non-bloquant — ne crashe jamais le process
+function testDbConnection() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const connection = yield exports.pool.getConnection();
+            console.log('✅ MySQL connecté avec succès');
+            connection.release();
+            return true;
+        }
+        catch (error) {
+            // ⚠️ Log détaillé pour debug LWS
+            console.error('❌ Erreur MySQL:', {
+                message: error.message,
+                code: error.code, // ex: ECONNREFUSED, ER_ACCESS_DENIED
+                errno: error.errno,
+                host: process.env.DB_HOST,
+                user: process.env.DB_USER,
+                database: process.env.DB_NAME,
+                port: process.env.DB_PORT,
+            });
+            return false;
+        }
+    });
+}
 //# sourceMappingURL=databaseConnect.js.map
