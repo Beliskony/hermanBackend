@@ -4,7 +4,6 @@ import cors from "cors";
 import { pool, testDbConnection } from "./config/databaseConnect";
 import userRouter from "./routes/user.route";
 import pollRouter from "./routes/poll.route";
-import eventRouter from "./routes/event.route";
 import formRouter from "./routes/form.route";
 import SendContactMailrouter from "./routes/sendmail.route";
 import wordsRouter from "./routes/words.route";
@@ -63,9 +62,8 @@ app.get("/health", async (_req, res) => {
 // ✅ 5. Routes métier
 app.use(userRouter);
 app.use(pollRouter);
-app.use(eventRouter);
 app.use(formRouter);
-app.use("/words", wordsRouter);
+app.use(wordsRouter);
 app.use(SendContactMailrouter);
 
 // ✅ 6. 404 handler

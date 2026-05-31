@@ -257,21 +257,21 @@ class FormService {
     // =============================================================================
     createGuideEntretien(data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
             const id = (0, id_1.newId)();
             yield databaseConnect_1.pool.query('CALL sp_save_guide_entretien(?,?,?,?,?,?,?,?,?,?,?,?)', [
                 id,
-                data.guideType,
+                (_a = data.guide_type) !== null && _a !== void 0 ? _a : data.guideType,
                 data.subprojet,
-                data.generalInfo.nom,
-                data.generalInfo.fonction,
-                (_a = data.generalInfo.contact) !== null && _a !== void 0 ? _a : '',
-                data.generalInfo.date,
-                data.generalInfo.lieu,
-                (_b = data.generalInfo.typeEntretien) !== null && _b !== void 0 ? _b : '',
-                (_c = data.generalInfo.employeur) !== null && _c !== void 0 ? _c : '',
-                (_d = data.generalInfo.typeContrat) !== null && _d !== void 0 ? _d : '',
-                (_e = data.notesAuditeur) !== null && _e !== void 0 ? _e : '',
+                (_b = data.gi_nom) !== null && _b !== void 0 ? _b : (_c = data.generalInfo) === null || _c === void 0 ? void 0 : _c.nom,
+                (_d = data.gi_fonction) !== null && _d !== void 0 ? _d : (_e = data.generalInfo) === null || _e === void 0 ? void 0 : _e.fonction,
+                (_h = (_f = data.gi_contact) !== null && _f !== void 0 ? _f : (_g = data.generalInfo) === null || _g === void 0 ? void 0 : _g.contact) !== null && _h !== void 0 ? _h : '',
+                (_j = data.gi_date) !== null && _j !== void 0 ? _j : (_k = data.generalInfo) === null || _k === void 0 ? void 0 : _k.date,
+                (_l = data.gi_lieu) !== null && _l !== void 0 ? _l : (_m = data.generalInfo) === null || _m === void 0 ? void 0 : _m.lieu,
+                (_q = (_o = data.gi_type_entretien) !== null && _o !== void 0 ? _o : (_p = data.generalInfo) === null || _p === void 0 ? void 0 : _p.typeEntretien) !== null && _q !== void 0 ? _q : '',
+                (_t = (_r = data.gi_employeur) !== null && _r !== void 0 ? _r : (_s = data.generalInfo) === null || _s === void 0 ? void 0 : _s.employeur) !== null && _t !== void 0 ? _t : '',
+                (_w = (_u = data.gi_type_contrat) !== null && _u !== void 0 ? _u : (_v = data.generalInfo) === null || _v === void 0 ? void 0 : _v.typeContrat) !== null && _w !== void 0 ? _w : '',
+                (_y = (_x = data.notes_auditeur) !== null && _x !== void 0 ? _x : data.notesAuditeur) !== null && _y !== void 0 ? _y : '',
             ]);
             // Insérer les questions de chaque thème
             yield this._insertGuideQuestions(id, data);
@@ -308,20 +308,20 @@ class FormService {
     }
     updateGuideEntretien(id, data) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d, _e;
+            var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y;
             yield databaseConnect_1.pool.query('CALL sp_save_guide_entretien(?,?,?,?,?,?,?,?,?,?,?,?)', [
                 id,
-                data.guideType,
+                (_a = data.guide_type) !== null && _a !== void 0 ? _a : data.guideType,
                 data.subprojet,
-                data.generalInfo.nom,
-                data.generalInfo.fonction,
-                (_a = data.generalInfo.contact) !== null && _a !== void 0 ? _a : '',
-                data.generalInfo.date,
-                data.generalInfo.lieu,
-                (_b = data.generalInfo.typeEntretien) !== null && _b !== void 0 ? _b : '',
-                (_c = data.generalInfo.employeur) !== null && _c !== void 0 ? _c : '',
-                (_d = data.generalInfo.typeContrat) !== null && _d !== void 0 ? _d : '',
-                (_e = data.notesAuditeur) !== null && _e !== void 0 ? _e : '',
+                (_b = data.gi_nom) !== null && _b !== void 0 ? _b : (_c = data.generalInfo) === null || _c === void 0 ? void 0 : _c.nom,
+                (_d = data.gi_fonction) !== null && _d !== void 0 ? _d : (_e = data.generalInfo) === null || _e === void 0 ? void 0 : _e.fonction,
+                (_h = (_f = data.gi_contact) !== null && _f !== void 0 ? _f : (_g = data.generalInfo) === null || _g === void 0 ? void 0 : _g.contact) !== null && _h !== void 0 ? _h : '',
+                (_j = data.gi_date) !== null && _j !== void 0 ? _j : (_k = data.generalInfo) === null || _k === void 0 ? void 0 : _k.date,
+                (_l = data.gi_lieu) !== null && _l !== void 0 ? _l : (_m = data.generalInfo) === null || _m === void 0 ? void 0 : _m.lieu,
+                (_q = (_o = data.gi_type_entretien) !== null && _o !== void 0 ? _o : (_p = data.generalInfo) === null || _p === void 0 ? void 0 : _p.typeEntretien) !== null && _q !== void 0 ? _q : '',
+                (_t = (_r = data.gi_employeur) !== null && _r !== void 0 ? _r : (_s = data.generalInfo) === null || _s === void 0 ? void 0 : _s.employeur) !== null && _t !== void 0 ? _t : '',
+                (_w = (_u = data.gi_type_contrat) !== null && _u !== void 0 ? _u : (_v = data.generalInfo) === null || _v === void 0 ? void 0 : _v.typeContrat) !== null && _w !== void 0 ? _w : '',
+                (_y = (_x = data.notes_auditeur) !== null && _x !== void 0 ? _x : data.notesAuditeur) !== null && _y !== void 0 ? _y : '',
             ]);
             // Re-synchroniser les questions : supprimer + réinsérer
             yield databaseConnect_1.pool.query('DELETE FROM guide_entretien_questions WHERE guide_entretien_id = ?', [id]);
@@ -697,17 +697,131 @@ class FormService {
     // ── Reconstructeurs (DB rows → shape Mongoose) ────────────────────────────
     _buildGuideResponse(row, questions) {
         const byTheme = (key) => questions.filter(q => q.theme_key === key);
-        return Object.assign(Object.assign({}, row), { generalInfo: {
-                nom: row.gi_nom, fonction: row.gi_fonction, contact: row.gi_contact,
-                date: row.gi_date, lieu: row.gi_lieu, typeEntretien: row.gi_type_entretien,
-                employeur: row.gi_employeur, typeContrat: row.gi_type_contrat,
-            }, theme1: { questions: byTheme('t1') }, theme2: { questions: byTheme('t2').map((q) => (Object.assign(Object.assign({}, q), { nuisancesObservees: q.nuisance_poussiere !== null ? {
-                        poussiere: !!q.nuisance_poussiere,
-                        bruit: !!q.nuisance_bruit,
-                        circulation: !!q.nuisance_circulation,
-                        odeurs: !!q.nuisance_odeurs,
-                        dechets: !!q.nuisance_dechets,
-                    } : undefined }))) }, theme3: { questions: byTheme('t3') }, theme4: byTheme('t4').length > 0 ? { questions: byTheme('t4') } : undefined });
+        // Retourne les champs directement (sans generalInfo) pour que words.service.ts les trouve
+        return {
+            id: row.id,
+            guide_type: row.guide_type,
+            subprojet: row.subprojet,
+            // Champs directs
+            gi_nom: row.gi_nom,
+            gi_fonction: row.gi_fonction,
+            gi_contact: row.gi_contact,
+            gi_date: row.gi_date,
+            gi_lieu: row.gi_lieu,
+            gi_type_entretien: row.gi_type_entretien,
+            gi_employeur: row.gi_employeur,
+            gi_type_contrat: row.gi_type_contrat,
+            notes_auditeur: row.notes_auditeur,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            // Thème 1
+            theme1: {
+                questions: byTheme('t1').map((q) => ({
+                    question_id: q.question_id,
+                    question: q.question,
+                    reponse: q.reponse,
+                    sort_order: q.sort_order,
+                }))
+            },
+            // Thème 2 (avec nuisances pour riverains)
+            theme2: {
+                questions: byTheme('t2').map((q) => ({
+                    question_id: q.question_id,
+                    question: q.question,
+                    reponse: q.reponse,
+                    nuisance_poussiere: q.nuisance_poussiere === 1,
+                    nuisance_bruit: q.nuisance_bruit === 1,
+                    nuisance_circulation: q.nuisance_circulation === 1,
+                    nuisance_odeurs: q.nuisance_odeurs === 1,
+                    nuisance_dechets: q.nuisance_dechets === 1,
+                    nuisancesObservees: {
+                        poussiere: q.nuisance_poussiere === 1,
+                        bruit: q.nuisance_bruit === 1,
+                        circulation: q.nuisance_circulation === 1,
+                        odeurs: q.nuisance_odeurs === 1,
+                        dechets: q.nuisance_dechets === 1,
+                    },
+                    sort_order: q.sort_order,
+                }))
+            },
+            // Thème 3
+            theme3: {
+                questions: byTheme('t3').map((q) => ({
+                    question_id: q.question_id,
+                    question: q.question,
+                    reponse: q.reponse,
+                    sort_order: q.sort_order,
+                }))
+            },
+            // Thème 4 (optionnel)
+            theme4: byTheme('t4').length > 0 ? {
+                questions: byTheme('t4').map((q) => ({
+                    question_id: q.question_id,
+                    question: q.question,
+                    reponse: q.reponse,
+                    sort_order: q.sort_order,
+                }))
+            } : undefined,
+        };
+    }
+    // ── GLOBAL STATS UNIFIED ─────────────────────────────────────────────────────
+    getGlobalStats() {
+        return __awaiter(this, void 0, void 0, function* () {
+            var _a, _b, _c, _d, _e, _f, _g, _h;
+            // Récupérer les totaux par table
+            const [apesCount] = yield databaseConnect_1.pool.query(`SELECT COUNT(*) as total FROM form_data`);
+            const [guideCount] = yield databaseConnect_1.pool.query(`SELECT COUNT(*) as total FROM guide_entretien`);
+            const [auditCount] = yield databaseConnect_1.pool.query(`SELECT COUNT(*) as total FROM checklist_audit`);
+            const [conducteurCount] = yield databaseConnect_1.pool.query(`SELECT COUNT(*) as total FROM checklist_conducteur`);
+            // Récupérer les stats par statut pour APES
+            const [apesStatus] = yield databaseConnect_1.pool.query(`
+    SELECT status, COUNT(*) as count 
+    FROM form_data 
+    GROUP BY status
+  `);
+            // Récupérer les stats par type pour guides
+            const [guideType] = yield databaseConnect_1.pool.query(`
+    SELECT guide_type as type, COUNT(*) as count 
+    FROM guide_entretien 
+    GROUP BY guide_type
+  `);
+            // Récupérer les 10 derniers formulaires créés (tous types)
+            const [recentForms] = yield databaseConnect_1.pool.query(`
+    SELECT 
+      id, 
+      'apes' as type, 
+      status, 
+      created_at,
+      (SELECT project_name FROM project_info WHERE project_info.id = form_data.project_info_id) as name
+    FROM form_data
+    UNION ALL
+    SELECT id, 'guide-entretien' as type, 'draft' as status, created_at, subprojet as name
+    FROM guide_entretien
+    UNION ALL
+    SELECT id, 'checklist-audit' as type, 'draft' as status, created_at, subprojet as name
+    FROM checklist_audit
+    UNION ALL
+    SELECT id, 'checklist-conducteur' as type, 'draft' as status, created_at, subprojet as name
+    FROM checklist_conducteur
+    ORDER BY created_at DESC
+    LIMIT 10
+  `);
+            const totalGeneral = (((_a = apesCount[0]) === null || _a === void 0 ? void 0 : _a.total) || 0) +
+                (((_b = guideCount[0]) === null || _b === void 0 ? void 0 : _b.total) || 0) +
+                (((_c = auditCount[0]) === null || _c === void 0 ? void 0 : _c.total) || 0) +
+                (((_d = conducteurCount[0]) === null || _d === void 0 ? void 0 : _d.total) || 0);
+            return {
+                total: totalGeneral,
+                byType: {
+                    apes: { total: ((_e = apesCount[0]) === null || _e === void 0 ? void 0 : _e.total) || 0, stats: apesStatus[0] || [] },
+                    guide: { total: ((_f = guideCount[0]) === null || _f === void 0 ? void 0 : _f.total) || 0, stats: guideType[0] || [] },
+                    checklistAudit: { total: ((_g = auditCount[0]) === null || _g === void 0 ? void 0 : _g.total) || 0 },
+                    checklistConducteur: { total: ((_h = conducteurCount[0]) === null || _h === void 0 ? void 0 : _h.total) || 0 }
+                },
+                recent: recentForms[0] || [],
+                timestamp: new Date().toISOString()
+            };
+        });
     }
     _buildAuditResponse(row, criteres, documents) {
         const bySectionKey = (key) => criteres.filter(c => c.section_key === key);

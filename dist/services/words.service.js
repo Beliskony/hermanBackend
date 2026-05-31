@@ -14,9 +14,6 @@ exports.exportChecklistAuditWord = exportChecklistAuditWord;
 exports.exportChecklistConducteurWord = exportChecklistConducteurWord;
 exports.exportGuideEntretienWord = exportGuideEntretienWord;
 const docx_1 = require("docx");
-// ─── Interfaces SQL (snake_case retourné par MySQL) ──────────
-// On n'importe plus les interfaces Mongoose — on type directement
-// les objets tels que retournés par FormService / pool.query()
 // ─── Palette & constantes ────────────────────────────────────
 const C = {
     primary: '1B3A5C', secondary: '2E75B6', accent: '00B0A0',
@@ -76,14 +73,9 @@ function buildFooter(generatedAt) {
 }
 // =============================================================================
 // 1. EXPORT APES (FormData MySQL)
-//    data = résultat de formService.getFormById()
-//    Champs SQL : project_name, project_date, auditors, location, period, status
-//    Sections   : documentReview, fieldInspection, stakeholderInterview,
-//                 genderAssessment, complaintMechanism
 // =============================================================================
 function buildCoverPage(data) {
     var _a, _b, _c, _d, _e;
-    // ← project_name / project_date viennent de v_form_summary (snake_case)
     const date = data.project_date
         ? new Date(data.project_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
         : '—';
@@ -114,12 +106,12 @@ function buildCoverPage(data) {
         pageBreak(),
     ];
 }
+// ── Section 01 : Revue documentaire ──────────────────────────
 function buildDocumentReview(data) {
     var _a, _b;
     const dr = data.documentReview;
     if (!dr)
         return [];
-    // MySQL retourne JSON parsé ou string → _parseJson déjà fait dans FormService
     const documentsPresents = (_a = dr.documents_presents) !== null && _a !== void 0 ? _a : {};
     const documentsAnalysis = (_b = dr.documents_analysis) !== null && _b !== void 0 ? _b : {};
     const COL = [3200, 900, 3538, 2000];
@@ -130,7 +122,12 @@ function buildDocumentReview(data) {
             const present = documentsPresents[key];
             const analysis = documentsAnalysis[key];
             const rating = (analysis === null || analysis === void 0 ? void 0 : analysis.rating) || 'n/a';
-            return new docx_1.TableRow({ children: [dCell(key, COL[0], { shade: i % 2 === 1 }), dCell(present ? '✓' : '✗', COL[1], { shade: i % 2 === 1, center: true, bold: true, color: present ? '1A7A4A' : 'C0392B' }), dCell((analysis === null || analysis === void 0 ? void 0 : analysis.findings) || '—', COL[2], { shade: i % 2 === 1 }), dCell(rating.toUpperCase(), COL[3], { shade: i % 2 === 1, center: true, bold: true, color: ratingColor[rating] || C.text })] });
+            return new docx_1.TableRow({ children: [
+                    dCell(key, COL[0], { shade: i % 2 === 1 }),
+                    dCell(present ? '✓' : '✗', COL[1], { shade: i % 2 === 1, center: true, bold: true, color: present ? '1A7A4A' : 'C0392B' }),
+                    dCell((analysis === null || analysis === void 0 ? void 0 : analysis.findings) || '—', COL[2], { shade: i % 2 === 1 }),
+                    dCell(rating.toUpperCase(), COL[3], { shade: i % 2 === 1, center: true, bold: true, color: ratingColor[rating] || C.text }),
+                ] });
         }),
     ];
     return [
@@ -142,6 +139,7 @@ function buildDocumentReview(data) {
         pageBreak(),
     ];
 }
+// ── Section 02 : Inspection de terrain ───────────────────────
 function buildInspectionCategory(title, items) {
     if (!items || Object.keys(items).length === 0)
         return [];
@@ -152,7 +150,12 @@ function buildInspectionCategory(title, items) {
         ...Object.entries(items).map(([key, val], i) => {
             const riskKey = (val.risk || '').toLowerCase();
             const rColorK = Object.keys(riskColor).find(k => riskKey.includes(k));
-            return new docx_1.TableRow({ children: [dCell(key, COL[0], { shade: i % 2 === 1 }), dCell(val.status, COL[1], { shade: i % 2 === 1, center: true }), dCell(val.observations, COL[2], { shade: i % 2 === 1 }), dCell(val.risk, COL[3], { shade: i % 2 === 1, center: true, bold: true, color: rColorK ? riskColor[rColorK] : C.text })] });
+            return new docx_1.TableRow({ children: [
+                    dCell(key, COL[0], { shade: i % 2 === 1 }),
+                    dCell(val.status, COL[1], { shade: i % 2 === 1, center: true }),
+                    dCell(val.observations, COL[2], { shade: i % 2 === 1 }),
+                    dCell(val.risk, COL[3], { shade: i % 2 === 1, center: true, bold: true, color: rColorK ? riskColor[rColorK] : C.text }),
+                ] });
         }),
     ];
     return [...subTitle(title), new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
@@ -162,7 +165,6 @@ function buildFieldInspection(data) {
     const fi = data.fieldInspection;
     if (!fi)
         return [];
-    // Champs SQL : project_name, water_management, waste_management, health_safety, community
     return [
         ...sectionTitle('02', 'Inspection de Terrain'),
         ...subTitle('Informations générales'),
@@ -170,7 +172,7 @@ function buildFieldInspection(data) {
         kvParagraph('Date', fi.date ? new Date(fi.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'),
         kvParagraph('Auditeurs', (_b = fi.auditors) !== null && _b !== void 0 ? _b : '—'),
         kvParagraph('Accompagnateurs', (_c = fi.accompaniers) !== null && _c !== void 0 ? _c : '—'),
-        kvParagraph('Zones visitées', (fi.zones || []).join(', ') || '—'),
+        kvParagraph('Zones visitées', Array.isArray(fi.zones) ? fi.zones.join(', ') || '—' : '—'),
         spacer(240),
         ...buildInspectionCategory("Gestion de l'eau", (_d = fi.water_management) !== null && _d !== void 0 ? _d : {}),
         ...buildInspectionCategory('Gestion des déchets', (_e = fi.waste_management) !== null && _e !== void 0 ? _e : {}),
@@ -180,14 +182,12 @@ function buildFieldInspection(data) {
         pageBreak(),
     ];
 }
+// ── Section 03 : Entretiens parties prenantes ─────────────────
 function buildStakeholderInterview(data) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     const si = data.stakeholderInterview;
     if (!si)
         return [];
-    // Champs SQL : profile_name, profile_function, profile_gender, profile_age_range,
-    //              stakeholder_type, consent_confidentiality, consent_notes, consent_recording,
-    //              eval_quality, eval_frankness, eval_relevance, eval_climate
     const COL2 = [3200, 6438];
     const profileRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Champ', COL2[0]), hCell('Valeur', COL2[1])] }),
@@ -225,7 +225,11 @@ function buildStakeholderInterview(data) {
     ];
     const evalRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', EVAL_COL[0]), hCell('Note /5', EVAL_COL[1], true), hCell('Représentation', EVAL_COL[2])] }),
-        ...evalEntries.map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, EVAL_COL[0], { shade: i % 2 === 1, bold: true }), dCell(String(v), EVAL_COL[1], { shade: i % 2 === 1, center: true, bold: true, color: C.secondary }), dCell('★'.repeat(v) + '☆'.repeat(5 - v), EVAL_COL[2], { shade: i % 2 === 1, color: C.secondary })] })),
+        ...evalEntries.map(([k, v], i) => new docx_1.TableRow({ children: [
+                dCell(k, EVAL_COL[0], { shade: i % 2 === 1, bold: true }),
+                dCell(String(v), EVAL_COL[1], { shade: i % 2 === 1, center: true, bold: true, color: C.secondary }),
+                dCell('★'.repeat(v) + '☆'.repeat(5 - v), EVAL_COL[2], { shade: i % 2 === 1, color: C.secondary }),
+            ] })),
     ];
     return [
         ...sectionTitle('03', 'Entretiens Parties Prenantes'),
@@ -244,31 +248,107 @@ function buildStakeholderInterview(data) {
         pageBreak(),
     ];
 }
+// ── Section 04 : Évaluation Genre ─────────────────────────────
 function buildGenderAssessment(data) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e, _f;
     const ga = data.genderAssessment;
     if (!ga)
         return [];
-    // Champs SQL : quantitative_data (JSON), objectives[], consultations[], impacts[], recommendations[]
+    // Objectifs
     const OBJ_COL = [3800, 3000, 2838];
     const objRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Objectif', OBJ_COL[0]), hCell('Indicateur', OBJ_COL[1]), hCell('Statut', OBJ_COL[2], true)] }),
-        ...((_a = ga.objectives) !== null && _a !== void 0 ? _a : []).map((o, i) => new docx_1.TableRow({ children: [dCell(o.objective, OBJ_COL[0], { shade: i % 2 === 1 }), dCell(o.indicator, OBJ_COL[1], { shade: i % 2 === 1 }), dCell(o.status, OBJ_COL[2], { shade: i % 2 === 1, center: true, bold: true })] })),
+        ...((_a = ga.objectives) !== null && _a !== void 0 ? _a : []).map((o, i) => new docx_1.TableRow({ children: [
+                dCell(o.objective, OBJ_COL[0], { shade: i % 2 === 1 }),
+                dCell(o.indicator, OBJ_COL[1], { shade: i % 2 === 1 }),
+                dCell(o.status, OBJ_COL[2], { shade: i % 2 === 1, center: true, bold: true }),
+            ] })),
     ];
+    // Données quantitatives
     const QT_COL = [2638, 1500, 1500, 1500, 2500];
     const qtRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Catégorie', QT_COL[0]), hCell('Femmes', QT_COL[1], true), hCell('Hommes', QT_COL[2], true), hCell('Autres', QT_COL[3], true), hCell('Source', QT_COL[4])] }),
-        ...Object.entries((_b = ga.quantitative_data) !== null && _b !== void 0 ? _b : {}).map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, QT_COL[0], { shade: i % 2 === 1, bold: true }), dCell(String(v.women), QT_COL[1], { shade: i % 2 === 1, center: true }), dCell(String(v.men), QT_COL[2], { shade: i % 2 === 1, center: true }), dCell(String(v.other), QT_COL[3], { shade: i % 2 === 1, center: true }), dCell(v.source, QT_COL[4], { shade: i % 2 === 1 })] })),
+        ...Object.entries((_b = ga.quantitative_data) !== null && _b !== void 0 ? _b : {}).map(([k, v], i) => new docx_1.TableRow({ children: [
+                dCell(k, QT_COL[0], { shade: i % 2 === 1, bold: true }),
+                dCell(String(v.women), QT_COL[1], { shade: i % 2 === 1, center: true }),
+                dCell(String(v.men), QT_COL[2], { shade: i % 2 === 1, center: true }),
+                dCell(String(v.other), QT_COL[3], { shade: i % 2 === 1, center: true }),
+                dCell(v.source, QT_COL[4], { shade: i % 2 === 1 }),
+            ] })),
     ];
+    // Consultations
     const CONS_COL = [2638, 1500, 2000, 3500];
     const consRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Groupe', CONS_COL[0]), hCell('Sessions', CONS_COL[1], true), hCell('Participants', CONS_COL[2], true), hCell('Méthode', CONS_COL[3])] }),
-        ...((_c = ga.consultations) !== null && _c !== void 0 ? _c : []).map((c, i) => new docx_1.TableRow({ children: [dCell(c.group, CONS_COL[0], { shade: i % 2 === 1, bold: true }), dCell(String(c.sessions), CONS_COL[1], { shade: i % 2 === 1, center: true }), dCell(String(c.participants), CONS_COL[2], { shade: i % 2 === 1, center: true }), dCell(c.method, CONS_COL[3], { shade: i % 2 === 1 })] })),
+        ...((_c = ga.consultations) !== null && _c !== void 0 ? _c : []).map((c, i) => new docx_1.TableRow({ children: [
+                dCell(c.group, CONS_COL[0], { shade: i % 2 === 1, bold: true }),
+                dCell(String(c.sessions), CONS_COL[1], { shade: i % 2 === 1, center: true }),
+                dCell(String(c.participants), CONS_COL[2], { shade: i % 2 === 1, center: true }),
+                dCell(c.method, CONS_COL[3], { shade: i % 2 === 1 }),
+            ] })),
     ];
+    // ── IMPACTS ENVIRONNEMENTAUX (ajout manquant) ──────────────
+    const ENV_COL = [2200, 1700, 1700, 1700, 1338, 900];
+    const envImpacts = ((_d = ga.impacts) !== null && _d !== void 0 ? _d : []).filter((imp) => imp.impact_type === 'environmental');
+    const envRows = [
+        new docx_1.TableRow({ tableHeader: true, children: [
+                hCell('Impact', ENV_COL[0]),
+                hCell('Femmes', ENV_COL[1]),
+                hCell('Hommes', ENV_COL[2]),
+                hCell('Vulnérables', ENV_COL[3]),
+                hCell('Sévérité', ENV_COL[4], true),
+                hCell('', ENV_COL[5]),
+            ] }),
+        ...envImpacts.map((imp, i) => {
+            var _a;
+            const sevColor = { faible: '1A7A4A', modérée: 'C07000', élevée: 'C0392B', critique: '8B0000' };
+            const sev = (imp.severity || '').toLowerCase();
+            const sColorK = Object.keys(sevColor).find(k => sev.includes(k));
+            return new docx_1.TableRow({ children: [
+                    dCell(imp.impact, ENV_COL[0], { shade: i % 2 === 1 }),
+                    dCell(imp.women, ENV_COL[1], { shade: i % 2 === 1 }),
+                    dCell(imp.men, ENV_COL[2], { shade: i % 2 === 1 }),
+                    dCell(imp.vulnerable, ENV_COL[3], { shade: i % 2 === 1 }),
+                    dCell((_a = imp.severity) !== null && _a !== void 0 ? _a : '—', ENV_COL[4], { shade: i % 2 === 1, center: true, bold: true, color: sColorK ? sevColor[sColorK] : C.text }),
+                    dCell('', ENV_COL[5], { shade: i % 2 === 1 }),
+                ] });
+        }),
+    ];
+    // ── IMPACTS SOCIOÉCONOMIQUES (ajout manquant) ──────────────
+    const SOCIO_COL = [2000, 1638, 1638, 1638, 1338, 1386];
+    const socioImpacts = ((_e = ga.impacts) !== null && _e !== void 0 ? _e : []).filter((imp) => imp.impact_type === 'socioeconomic');
+    const socioRows = [
+        new docx_1.TableRow({ tableHeader: true, children: [
+                hCell('Impact', SOCIO_COL[0]),
+                hCell('Femmes', SOCIO_COL[1]),
+                hCell('Hommes', SOCIO_COL[2]),
+                hCell('Vulnérables', SOCIO_COL[3]),
+                hCell('Opportunité', SOCIO_COL[4]),
+                hCell('', SOCIO_COL[5]),
+            ] }),
+        ...socioImpacts.map((imp, i) => {
+            var _a;
+            return new docx_1.TableRow({ children: [
+                    dCell(imp.impact, SOCIO_COL[0], { shade: i % 2 === 1 }),
+                    dCell(imp.women, SOCIO_COL[1], { shade: i % 2 === 1 }),
+                    dCell(imp.men, SOCIO_COL[2], { shade: i % 2 === 1 }),
+                    dCell(imp.vulnerable, SOCIO_COL[3], { shade: i % 2 === 1 }),
+                    dCell((_a = imp.opportunity) !== null && _a !== void 0 ? _a : '—', SOCIO_COL[4], { shade: i % 2 === 1 }),
+                    dCell('', SOCIO_COL[5], { shade: i % 2 === 1 }),
+                ] });
+        }),
+    ];
+    // Recommandations
     const REC_COL = [3300, 1300, 1500, 1838, 1700];
     const recRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Recommandation', REC_COL[0]), hCell('Priorité', REC_COL[1], true), hCell('Portée', REC_COL[2], true), hCell('Responsable', REC_COL[3]), hCell('Échéance', REC_COL[4], true)] }),
-        ...((_d = ga.recommendations) !== null && _d !== void 0 ? _d : []).map((r, i) => new docx_1.TableRow({ children: [dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }), dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }), dCell(r.scope, REC_COL[2], { shade: i % 2 === 1, center: true }), dCell(r.responsible, REC_COL[3], { shade: i % 2 === 1 }), dCell(r.deadline, REC_COL[4], { shade: i % 2 === 1, center: true })] })),
+        ...((_f = ga.recommendations) !== null && _f !== void 0 ? _f : []).map((r, i) => new docx_1.TableRow({ children: [
+                dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }),
+                dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }),
+                dCell(r.scope, REC_COL[2], { shade: i % 2 === 1, center: true }),
+                dCell(r.responsible, REC_COL[3], { shade: i % 2 === 1 }),
+                dCell(r.deadline, REC_COL[4], { shade: i % 2 === 1, center: true }),
+            ] })),
     ];
     return [
         ...sectionTitle('04', 'Évaluation Genre'),
@@ -281,28 +361,59 @@ function buildGenderAssessment(data) {
         ...subTitle('Consultations réalisées'),
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: CONS_COL, rows: consRows }),
         spacer(200),
+        // ── Impacts environnementaux (NOUVEAU) ──
+        ...(envImpacts.length > 0 ? [
+            ...subTitle('Impacts environnementaux différenciés'),
+            new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: ENV_COL, rows: envRows }),
+            spacer(200),
+        ] : []),
+        // ── Impacts socioéconomiques (NOUVEAU) ──
+        ...(socioImpacts.length > 0 ? [
+            ...subTitle('Impacts socioéconomiques différenciés'),
+            new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: SOCIO_COL, rows: socioRows }),
+            spacer(200),
+        ] : []),
         ...subTitle('Recommandations'),
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: REC_COL, rows: recRows }),
         spacer(160),
         pageBreak(),
     ];
 }
+// ── Section 05 : Mécanisme de plainte ─────────────────────────
 function buildComplaintMechanism(data) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     const cm = data.complaintMechanism;
     if (!cm)
         return [];
-    // Champs SQL : documentary_basis, key_criteria, strengths[], weaknesses[], recommendations[], global_conclusion
-    const DOC_COL = [2638, 3500, 3500];
+    // ── Base documentaire (avec evidence — CORRIGÉ) ────────────
+    const DOC_COL = [2000, 2319, 2819, 2500];
     const docRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Document', DOC_COL[0]), hCell('Constat', DOC_COL[1]), hCell('Évaluation', DOC_COL[2])] }),
-        ...Object.entries((_a = cm.documentary_basis) !== null && _a !== void 0 ? _a : {}).map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, DOC_COL[0], { shade: i % 2 === 1, bold: true }), dCell(v.finding, DOC_COL[1], { shade: i % 2 === 1 }), dCell(v.evaluation, DOC_COL[2], { shade: i % 2 === 1 })] })),
+        new docx_1.TableRow({ tableHeader: true, children: [
+                hCell('Document', DOC_COL[0]),
+                hCell('Constat', DOC_COL[1]),
+                hCell('Preuve', DOC_COL[2]), // ← evidence ajouté
+                hCell('Évaluation', DOC_COL[3]),
+            ] }),
+        ...Object.entries((_a = cm.documentary_basis) !== null && _a !== void 0 ? _a : {}).map(([k, v], i) => {
+            var _a;
+            return new docx_1.TableRow({ children: [
+                    dCell(k, DOC_COL[0], { shade: i % 2 === 1, bold: true }),
+                    dCell(v.finding, DOC_COL[1], { shade: i % 2 === 1 }),
+                    dCell((_a = v.evidence) !== null && _a !== void 0 ? _a : '—', DOC_COL[2], { shade: i % 2 === 1 }), // ← evidence
+                    dCell(v.evaluation, DOC_COL[3], { shade: i % 2 === 1 }),
+                ] });
+        }),
     ];
+    // Critères clés
     const CRIT_COL = [3819, 5819];
     const critRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', CRIT_COL[0]), hCell('Évaluation', CRIT_COL[1])] }),
-        ...Object.entries((_b = cm.key_criteria) !== null && _b !== void 0 ? _b : {}).map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, CRIT_COL[0], { shade: i % 2 === 1, bold: true }), dCell(v.evaluation, CRIT_COL[1], { shade: i % 2 === 1 })] })),
+        ...Object.entries((_b = cm.key_criteria) !== null && _b !== void 0 ? _b : {}).map(([k, v], i) => new docx_1.TableRow({ children: [
+                dCell(k, CRIT_COL[0], { shade: i % 2 === 1, bold: true }),
+                dCell(v.evaluation, CRIT_COL[1], { shade: i % 2 === 1 }),
+            ] })),
     ];
+    // Faiblesses
     const sevColor = { faible: '1A7A4A', modérée: 'C07000', élevée: 'C0392B', critique: '8B0000' };
     const WEAK_COL = [3400, 3638, 2600];
     const weakRows = [
@@ -310,13 +421,23 @@ function buildComplaintMechanism(data) {
         ...((_c = cm.weaknesses) !== null && _c !== void 0 ? _c : []).map((w, i) => {
             const sev = (w.severity || '').toLowerCase();
             const sColorK = Object.keys(sevColor).find(k => sev.includes(k));
-            return new docx_1.TableRow({ children: [dCell(w.deficiency, WEAK_COL[0], { shade: i % 2 === 1 }), dCell(w.consequence, WEAK_COL[1], { shade: i % 2 === 1 }), dCell(w.severity, WEAK_COL[2], { shade: i % 2 === 1, center: true, bold: true, color: sColorK ? sevColor[sColorK] : C.text })] });
+            return new docx_1.TableRow({ children: [
+                    dCell(w.deficiency, WEAK_COL[0], { shade: i % 2 === 1 }),
+                    dCell(w.consequence, WEAK_COL[1], { shade: i % 2 === 1 }),
+                    dCell(w.severity, WEAK_COL[2], { shade: i % 2 === 1, center: true, bold: true, color: sColorK ? sevColor[sColorK] : C.text }),
+                ] });
         }),
     ];
+    // Recommandations
     const REC_COL = [3638, 1500, 2300, 2200];
     const recRows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('Recommandation', REC_COL[0]), hCell('Priorité', REC_COL[1], true), hCell('Responsable', REC_COL[2]), hCell('Échéance', REC_COL[3], true)] }),
-        ...((_d = cm.recommendations) !== null && _d !== void 0 ? _d : []).map((r, i) => new docx_1.TableRow({ children: [dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }), dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }), dCell(r.responsible, REC_COL[2], { shade: i % 2 === 1 }), dCell(r.deadline, REC_COL[3], { shade: i % 2 === 1, center: true })] })),
+        ...((_d = cm.recommendations) !== null && _d !== void 0 ? _d : []).map((r, i) => new docx_1.TableRow({ children: [
+                dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }),
+                dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }),
+                dCell(r.responsible, REC_COL[2], { shade: i % 2 === 1 }),
+                dCell(r.deadline, REC_COL[3], { shade: i % 2 === 1, center: true }),
+            ] })),
     ];
     return [
         ...sectionTitle('05', 'Mécanisme de Plainte'),
@@ -327,7 +448,13 @@ function buildComplaintMechanism(data) {
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: CRIT_COL, rows: critRows }),
         spacer(200),
         ...subTitle('Points forts identifiés'),
-        ...((_e = cm.strengths) !== null && _e !== void 0 ? _e : []).map((s) => new docx_1.Paragraph({ numbering: { reference: 'bullets', level: 0 }, spacing: { after: 60 }, children: [new docx_1.TextRun({ text: s, size: 20, font: 'Calibri', color: C.text })] })),
+        ...((_e = cm.strengths) !== null && _e !== void 0 ? _e : []).length === 0
+            ? [new docx_1.Paragraph({ spacing: { after: 60 }, children: [new docx_1.TextRun({ text: '—', size: 20, font: 'Calibri', color: C.muted, italics: true })] })]
+            : ((_f = cm.strengths) !== null && _f !== void 0 ? _f : []).map((s) => new docx_1.Paragraph({
+                numbering: { reference: 'bullets', level: 0 },
+                spacing: { after: 60 },
+                children: [new docx_1.TextRun({ text: s, size: 20, font: 'Calibri', color: C.text })],
+            })),
         spacer(200),
         ...subTitle('Faiblesses et risques'),
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: WEAK_COL, rows: weakRows }),
@@ -339,11 +466,12 @@ function buildComplaintMechanism(data) {
         new docx_1.Paragraph({ spacing: { after: 160 }, border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } }, indent: { left: 280 }, children: [new docx_1.TextRun({ text: cm.global_conclusion || '—', size: 20, color: C.text, font: 'Calibri', italics: true })] }),
     ];
 }
+// ── Export principal APES ─────────────────────────────────────
 function generateFormDataWordDocument(data) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a;
         const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        const projectName = (_a = data.project_name) !== null && _a !== void 0 ? _a : 'Projet'; // ← snake_case
+        const projectName = (_a = data.project_name) !== null && _a !== void 0 ? _a : 'Projet';
         const doc = new docx_1.Document({
             numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
             styles: {
@@ -354,8 +482,22 @@ function generateFormDataWordDocument(data) {
                 ],
             },
             sections: [
-                { properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } }, children: buildCoverPage(data) },
-                { properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } }, headers: { default: buildHeader(projectName) }, footers: { default: buildFooter(generatedAt) }, children: [...buildDocumentReview(data), ...buildFieldInspection(data), ...buildStakeholderInterview(data), ...buildGenderAssessment(data), ...buildComplaintMechanism(data)] },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildCoverPage(data),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader(projectName) },
+                    footers: { default: buildFooter(generatedAt) },
+                    children: [
+                        ...buildDocumentReview(data),
+                        ...buildFieldInspection(data),
+                        ...buildStakeholderInterview(data),
+                        ...buildGenderAssessment(data),
+                        ...buildComplaintMechanism(data),
+                    ],
+                },
             ],
         });
         return docx_1.Packer.toBuffer(doc);
@@ -363,8 +505,6 @@ function generateFormDataWordDocument(data) {
 }
 // =============================================================================
 // 2. EXPORT CHECKLIST AUDIT
-//    data = résultat de formService.getChecklistAuditById()
-//    Champs SQL : subprojet, auditeurs, date, synth_*, section1..section6 (reconstitués)
 // =============================================================================
 function buildCritereTable(items) {
     if (!(items === null || items === void 0 ? void 0 : items.length))
@@ -374,7 +514,16 @@ function buildCritereTable(items) {
     const lConf = (c) => { var _a; return ((_a = { O: 'Conforme', N: 'Non conforme', P: 'Partiel' }[c]) !== null && _a !== void 0 ? _a : 'S.O.'); };
     const rows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Critère', COL[1]), hCell('Sources/Méthode', COL[2]), hCell('Observations', COL[3]), hCell('Conformité', COL[4], true)] }),
-        ...items.map((item, i) => { var _a, _b; return new docx_1.TableRow({ children: [dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }), dCell(item.critere, COL[1], { shade: i % 2 === 1 }), dCell((_a = item.sources_methode) !== null && _a !== void 0 ? _a : '—', COL[2], { shade: i % 2 === 1 }), dCell((_b = item.observations) !== null && _b !== void 0 ? _b : '—', COL[3], { shade: i % 2 === 1 }), dCell(lConf(item.conformite), COL[4], { shade: i % 2 === 1, center: true, bold: true, color: cConf(item.conformite) })] }); }),
+        ...items.map((item, i) => {
+            var _a, _b;
+            return new docx_1.TableRow({ children: [
+                    dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
+                    dCell(item.critere, COL[1], { shade: i % 2 === 1 }),
+                    dCell((_a = item.sources_methode) !== null && _a !== void 0 ? _a : '—', COL[2], { shade: i % 2 === 1 }),
+                    dCell((_b = item.observations) !== null && _b !== void 0 ? _b : '—', COL[3], { shade: i % 2 === 1 }),
+                    dCell(lConf(item.conformite), COL[4], { shade: i % 2 === 1, center: true, bold: true, color: cConf(item.conformite) }),
+                ] });
+        }),
     ];
     return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
 }
@@ -386,17 +535,28 @@ function buildDocumentAuditTable(items) {
     const lDisp = (d) => { var _a; return ((_a = { O: 'Disponible', N: 'Non disponible', P: 'Partiel' }[d]) !== null && _a !== void 0 ? _a : 'S.O.'); };
     const rows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Document', COL[1]), hCell('Disponible', COL[2], true), hCell('Commentaires', COL[3])] }),
-        ...items.map((item, i) => new docx_1.TableRow({ children: [dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }), dCell(item.document, COL[1], { shade: i % 2 === 1 }), dCell(lDisp(item.disponible), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: cDisp(item.disponible) }), dCell(item.commentaires || '—', COL[3], { shade: i % 2 === 1 })] })),
+        ...items.map((item, i) => new docx_1.TableRow({ children: [
+                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
+                dCell(item.document, COL[1], { shade: i % 2 === 1 }),
+                dCell(lDisp(item.disponible), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: cDisp(item.disponible) }),
+                dCell(item.commentaires || '—', COL[3], { shade: i % 2 === 1 }),
+            ] })),
     ];
     return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
 }
 function exportChecklistAuditWord(data) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
         const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        // _buildAuditResponse dans FormService reconstitue section1_cadreJuridique, section2_infraSecurite, etc.
-        // Ces champs camelCase sont conservés pour la compatibilité avec le service Word
         const doc = new docx_1.Document({
+            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
+            styles: {
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
+                paragraphStyles: [
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                ],
+            },
             sections: [
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
@@ -405,7 +565,18 @@ function exportChecklistAuditWord(data) {
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: "CHECKLIST D'AUDIT", bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'ENVIRONNEMENTAL ET SOCIAL', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-                        new docx_1.Table({ width: { size: 7000, type: docx_1.WidthType.DXA }, columnWidths: [2800, 4200], rows: [['Sous-projet', data.subprojet], ['Auditeurs', data.auditeurs], ['Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—']].map(([label, val], i) => new docx_1.TableRow({ children: [new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }), new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] })] })) }),
+                        new docx_1.Table({
+                            width: { size: 7000, type: docx_1.WidthType.DXA },
+                            columnWidths: [2800, 4200],
+                            rows: [
+                                ['Sous-projet', (_a = data.subprojet) !== null && _a !== void 0 ? _a : '—'],
+                                ['Auditeurs', (_b = data.auditeurs) !== null && _b !== void 0 ? _b : '—'],
+                                ['Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—'],
+                            ].map(([label, val], i) => new docx_1.TableRow({ children: [
+                                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                                ] })),
+                        }),
                         pageBreak(),
                     ],
                 },
@@ -417,26 +588,25 @@ function exportChecklistAuditWord(data) {
                         ...sectionTitle('01', 'Cadre juridique, administratif et foncier'),
                         ...buildCritereTable(data.section1_cadreJuridique),
                         ...sectionTitle('02', 'Conception, structure et sécurité'),
-                        ...subTitle('Stabilité de la structure'), ...buildCritereTable((_a = data.section2_infraSecurite) === null || _a === void 0 ? void 0 : _a.stabiliteStructure),
-                        ...subTitle('Sécurité incendie'), ...buildCritereTable((_b = data.section2_infraSecurite) === null || _b === void 0 ? void 0 : _b.securiteIncendie),
-                        ...subTitle('Accessibilité PMR'), ...buildCritereTable((_c = data.section2_infraSecurite) === null || _c === void 0 ? void 0 : _c.accessibilitePMR),
+                        ...subTitle('Stabilité de la structure'), ...buildCritereTable((_c = data.section2_infraSecurite) === null || _c === void 0 ? void 0 : _c.stabiliteStructure),
+                        ...subTitle('Sécurité incendie'), ...buildCritereTable((_d = data.section2_infraSecurite) === null || _d === void 0 ? void 0 : _d.securiteIncendie),
+                        ...subTitle('Accessibilité PMR'), ...buildCritereTable((_e = data.section2_infraSecurite) === null || _e === void 0 ? void 0 : _e.accessibilitePMR),
                         ...sectionTitle('03', 'Gestion environnementale et sociale du chantier'),
-                        ...subTitle('Gestion des déchets'), ...buildCritereTable((_d = data.section3_gestionEnvSociale) === null || _d === void 0 ? void 0 : _d.gestionDechets),
-                        ...subTitle('Nuisances et pollution'), ...buildCritereTable((_e = data.section3_gestionEnvSociale) === null || _e === void 0 ? void 0 : _e.nuisancesPollution),
-                        ...subTitle('Santé et sécurité travailleurs'), ...buildCritereTable((_f = data.section3_gestionEnvSociale) === null || _f === void 0 ? void 0 : _f.santeSecuteTravailleurs),
+                        ...subTitle('Gestion des déchets'), ...buildCritereTable((_f = data.section3_gestionEnvSociale) === null || _f === void 0 ? void 0 : _f.gestionDechets),
+                        ...subTitle('Nuisances et pollution'), ...buildCritereTable((_g = data.section3_gestionEnvSociale) === null || _g === void 0 ? void 0 : _g.nuisancesPollution),
+                        ...subTitle('Santé et sécurité travailleurs'), ...buildCritereTable((_h = data.section3_gestionEnvSociale) === null || _h === void 0 ? void 0 : _h.santeSecuteTravailleurs),
                         ...sectionTitle('04', 'Gestion sociale et parties prenantes'),
-                        ...subTitle('Relations avec les communautés'), ...buildCritereTable((_g = data.section4_gestionSociale) === null || _g === void 0 ? void 0 : _g.relationsCommunautes),
-                        ...subTitle('MGP'), ...buildCritereTable((_h = data.section4_gestionSociale) === null || _h === void 0 ? void 0 : _h.mgp),
-                        ...sectionTitle('05', 'Analyse des risques liés au futur ERP'),
-                        ...subTitle('Sécurité / Sûreté'), ...buildCritereTable((_j = data.section5_risquesERP) === null || _j === void 0 ? void 0 : _j.securiteSurete),
-                        ...subTitle('Hygiène et environnement'), ...buildCritereTable((_k = data.section5_risquesERP) === null || _k === void 0 ? void 0 : _k.hygieneEnvironnement),
+                        ...subTitle('Relations avec les communautés'), ...buildCritereTable((_j = data.section4_gestionSociale) === null || _j === void 0 ? void 0 : _j.relationsCommunautes),
+                        ...subTitle('MGP'), ...buildCritereTable((_k = data.section4_gestionSociale) === null || _k === void 0 ? void 0 : _k.mgp),
+                        ...sectionTitle('05', "Analyse des risques liés au futur ERP"),
+                        ...subTitle('Sécurité / Sûreté'), ...buildCritereTable((_l = data.section5_risquesERP) === null || _l === void 0 ? void 0 : _l.securiteSurete),
+                        ...subTitle('Hygiène et environnement'), ...buildCritereTable((_m = data.section5_risquesERP) === null || _m === void 0 ? void 0 : _m.hygieneEnvironnement),
                         ...sectionTitle('06', 'Bilan documentaire'),
                         ...buildDocumentAuditTable(data.section6_bilanDocumentaire),
                         ...sectionTitle('07', 'Synthèse'),
-                        // synthese reconstitué par _buildAuditResponse avec les clés camelCase
-                        kvParagraph('Nombre de non-conformités majeures', String((_m = (_l = data.synthese) === null || _l === void 0 ? void 0 : _l.nombreNonConformitesMajeures) !== null && _m !== void 0 ? _m : 0)),
-                        kvParagraph('Domaines critiques', (_p = (_o = data.synthese) === null || _o === void 0 ? void 0 : _o.domainesCritiques) !== null && _p !== void 0 ? _p : '—'),
-                        kvParagraph("Signature de l'auditeur", (_r = (_q = data.synthese) === null || _q === void 0 ? void 0 : _q.signatureAuditeur) !== null && _r !== void 0 ? _r : '—'),
+                        kvParagraph('Nombre de non-conformités majeures', String((_p = (_o = data.synthese) === null || _o === void 0 ? void 0 : _o.nombreNonConformitesMajeures) !== null && _p !== void 0 ? _p : 0)),
+                        kvParagraph('Domaines critiques', (_r = (_q = data.synthese) === null || _q === void 0 ? void 0 : _q.domainesCritiques) !== null && _r !== void 0 ? _r : '—'),
+                        kvParagraph("Signature de l'auditeur", (_t = (_s = data.synthese) === null || _s === void 0 ? void 0 : _s.signatureAuditeur) !== null && _t !== void 0 ? _t : '—'),
                         spacer(240),
                     ],
                 },
@@ -447,9 +617,6 @@ function exportChecklistAuditWord(data) {
 }
 // =============================================================================
 // 3. EXPORT CHECKLIST CONDUCTEUR
-//    data = résultat de formService.getChecklistConducteurById()
-//    Champs SQL : personne_rencontree, duree_entretien, commentaires_libres, signature_auditeur
-//    Sections reconstitués camelCase par _buildConducteurResponse
 // =============================================================================
 function buildQuestionTableConducteur(items) {
     if (!(items === null || items === void 0 ? void 0 : items.length))
@@ -459,7 +626,13 @@ function buildQuestionTableConducteur(items) {
     const rL = (r) => { var _a; return ((_a = { oui: 'Oui', non: 'Non', partiellement: 'Partiel', nsp: 'NSP' }[r]) !== null && _a !== void 0 ? _a : 'S.O.'); };
     const rows = [
         new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Question', COL[1]), hCell('Réponse', COL[2], true), hCell('Réponse détaillée', COL[3]), hCell('Observations', COL[4])] }),
-        ...items.map((item, i) => new docx_1.TableRow({ children: [dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }), dCell(item.question, COL[1], { shade: i % 2 === 1 }), dCell(rL(item.reponse_booleenne), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: rC(item.reponse_booleenne) }), dCell(item.reponse || '—', COL[3], { shade: i % 2 === 1 }), dCell(item.observations || '—', COL[4], { shade: i % 2 === 1 })] })),
+        ...items.map((item, i) => new docx_1.TableRow({ children: [
+                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
+                dCell(item.question, COL[1], { shade: i % 2 === 1 }),
+                dCell(rL(item.reponse_booleenne), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: rC(item.reponse_booleenne) }),
+                dCell(item.reponse || '—', COL[3], { shade: i % 2 === 1 }),
+                dCell(item.observations || '—', COL[4], { shade: i % 2 === 1 }),
+            ] })),
     ];
     return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
 }
@@ -481,6 +654,14 @@ function exportChecklistConducteurWord(data) {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j;
         const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
         const doc = new docx_1.Document({
+            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
+            styles: {
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
+                paragraphStyles: [
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                ],
+            },
             sections: [
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
@@ -489,14 +670,21 @@ function exportChecklistConducteurWord(data) {
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'CHECKLIST CONDUCTEUR', bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'DES TRAVAUX', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-                        new docx_1.Table({ width: { size: 7000, type: docx_1.WidthType.DXA }, columnWidths: [2800, 4200], rows: [
+                        new docx_1.Table({
+                            width: { size: 7000, type: docx_1.WidthType.DXA },
+                            columnWidths: [2800, 4200],
+                            rows: [
                                 ['Sous-projet', (_a = data.subprojet) !== null && _a !== void 0 ? _a : '—'],
                                 ['Auditeur', (_b = data.auditeur) !== null && _b !== void 0 ? _b : '—'],
                                 ['Entreprise', (_c = data.entreprise) !== null && _c !== void 0 ? _c : '—'],
-                                ['Personne rencontrée', (_d = data.personne_rencontree) !== null && _d !== void 0 ? _d : '—'], // ← snake_case
+                                ['Personne rencontrée', (_d = data.personne_rencontree) !== null && _d !== void 0 ? _d : '—'],
                                 ['Fonction', (_e = data.fonction) !== null && _e !== void 0 ? _e : '—'],
                                 ['Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—'],
-                            ].map(([label, val], i) => new docx_1.TableRow({ children: [new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }), new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] })] })) }),
+                            ].map(([label, val], i) => new docx_1.TableRow({ children: [
+                                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                                ] })),
+                        }),
                         pageBreak(),
                     ],
                 },
@@ -507,7 +695,7 @@ function exportChecklistConducteurWord(data) {
                     children: [
                         ...subTitle("Informations de l'entretien"),
                         kvParagraph('Contact', (_f = data.contact) !== null && _f !== void 0 ? _f : '—'),
-                        kvParagraph("Durée de l'entretien", (_g = data.duree_entretien) !== null && _g !== void 0 ? _g : '—'), // ← snake_case
+                        kvParagraph("Durée de l'entretien", (_g = data.duree_entretien) !== null && _g !== void 0 ? _g : '—'),
                         kvParagraph('Lieu', (_h = data.lieu) !== null && _h !== void 0 ? _h : '—'),
                         spacer(240),
                         ...SECTIONS_CONDUCTEUR.flatMap(s => {
@@ -517,10 +705,15 @@ function exportChecklistConducteurWord(data) {
                             return [...sectionTitle(s.num, s.title), ...buildQuestionTableConducteur(items)];
                         }),
                         ...sectionTitle('12', 'Commentaires libres'),
-                        new docx_1.Paragraph({ spacing: { after: 160 }, border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } }, indent: { left: 280 }, children: [new docx_1.TextRun({ text: data.commentaires_libres || '—', size: 20, color: C.text, font: 'Calibri', italics: true })] }), // ← snake_case
+                        new docx_1.Paragraph({
+                            spacing: { after: 160 },
+                            border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } },
+                            indent: { left: 280 },
+                            children: [new docx_1.TextRun({ text: data.commentaires_libres || '—', size: 20, color: C.text, font: 'Calibri', italics: true })],
+                        }),
                         spacer(240),
                         ...sectionTitle('13', 'Signature'),
-                        kvParagraph("Signature de l'auditeur", (_j = data.signature_auditeur) !== null && _j !== void 0 ? _j : '—'), // ← snake_case
+                        kvParagraph("Signature de l'auditeur", (_j = data.signature_auditeur) !== null && _j !== void 0 ? _j : '—'),
                         spacer(240),
                     ],
                 },
@@ -531,10 +724,6 @@ function exportChecklistConducteurWord(data) {
 }
 // =============================================================================
 // 4. EXPORT GUIDE D'ENTRETIEN
-//    data = résultat de formService.getGuideEntretienById()
-//    Champs SQL : guide_type, gi_nom, gi_fonction, gi_date, gi_lieu,
-//                 gi_type_entretien, gi_employeur, gi_type_contrat, notes_auditeur
-//    Thèmes reconstitués camelCase par _buildGuideResponse (theme1..theme4)
 // =============================================================================
 function buildThemeTable(theme, showNuisances = false) {
     var _a;
@@ -542,22 +731,47 @@ function buildThemeTable(theme, showNuisances = false) {
     if (!questions.length)
         return [];
     const COL = showNuisances ? [600, 3200, 2000, 2000, 1838] : [600, 4000, 2500, 2538];
-    const headers = showNuisances ? ['N°', 'Question', 'Réponse', 'Nuisances observées', 'Notes'] : ['N°', 'Question', 'Réponse', 'Notes'];
+    const headers = showNuisances
+        ? ['N°', 'Question', 'Réponse', 'Nuisances observées', 'Notes']
+        : ['N°', 'Question', 'Réponse', 'Notes'];
     const rows = [
         new docx_1.TableRow({ tableHeader: true, children: headers.map((h, i) => hCell(h, COL[i], i === 0 || i === 2)) }),
         ...questions.map((q, i) => {
-            var _a, _b, _c, _d;
+            var _a, _b, _c, _d, _e;
             const shade = i % 2 === 1;
             const notes = (_b = (_a = q.observations) !== null && _a !== void 0 ? _a : q.notes) !== null && _b !== void 0 ? _b : '—';
             let nuisancesText = '—';
-            if (showNuisances && q.nuisancesObservees) {
-                const n = q.nuisancesObservees;
-                nuisancesText = [n.poussiere && '✓ Poussière', n.bruit && '✓ Bruit', n.circulation && '✓ Circulation', n.odeurs && '✓ Odeurs', n.dechets && '✓ Déchets'].filter(Boolean).join(', ') || 'Aucune';
+            if (showNuisances) {
+                const n = (_c = q.nuisancesObservees) !== null && _c !== void 0 ? _c : {
+                    poussiere: q.nuisance_poussiere,
+                    bruit: q.nuisance_bruit,
+                    circulation: q.nuisance_circulation,
+                    odeurs: q.nuisance_odeurs,
+                    dechets: q.nuisance_dechets,
+                };
+                nuisancesText = [
+                    n.poussiere && '✓ Poussière',
+                    n.bruit && '✓ Bruit',
+                    n.circulation && '✓ Circulation',
+                    n.odeurs && '✓ Odeurs',
+                    n.dechets && '✓ Déchets',
+                ].filter(Boolean).join(', ') || 'Aucune';
             }
             if (showNuisances) {
-                return new docx_1.TableRow({ children: [dCell((_c = q.questionId) !== null && _c !== void 0 ? _c : q.question_id, COL[0], { shade, center: true }), dCell(q.question, COL[1], { shade }), dCell(q.reponse || '—', COL[2], { shade }), dCell(nuisancesText, COL[3], { shade }), dCell(notes, COL[4], { shade })] });
+                return new docx_1.TableRow({ children: [
+                        dCell((_d = q.questionId) !== null && _d !== void 0 ? _d : q.question_id, COL[0], { shade, center: true }),
+                        dCell(q.question, COL[1], { shade }),
+                        dCell(q.reponse || '—', COL[2], { shade }),
+                        dCell(nuisancesText, COL[3], { shade }),
+                        dCell(notes, COL[4], { shade }),
+                    ] });
             }
-            return new docx_1.TableRow({ children: [dCell((_d = q.questionId) !== null && _d !== void 0 ? _d : q.question_id, COL[0], { shade, center: true }), dCell(q.question, COL[1], { shade }), dCell(q.reponse || '—', COL[2], { shade }), dCell(notes, COL[3], { shade })] });
+            return new docx_1.TableRow({ children: [
+                    dCell((_e = q.questionId) !== null && _e !== void 0 ? _e : q.question_id, COL[0], { shade, center: true }),
+                    dCell(q.question, COL[1], { shade }),
+                    dCell(q.reponse || '—', COL[2], { shade }),
+                    dCell(notes, COL[3], { shade }),
+                ] });
         }),
     ];
     return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
@@ -566,17 +780,19 @@ function exportGuideEntretienWord(data) {
     return __awaiter(this, void 0, void 0, function* () {
         var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        const guideType = (_a = data.guide_type) !== null && _a !== void 0 ? _a : ''; // ← snake_case
+        const guideType = (_a = data.guide_type) !== null && _a !== void 0 ? _a : '';
         const isRiverains = guideType === 'riverains_communaute';
         const guideLabels = {
-            autorites_locales: 'Autorités Locales', riverains_communaute: 'Riverains / Communauté',
-            travailleurs_chantier: 'Travailleurs du Chantier', maitrise_ouvrage_entreprise: "Maîtrise d'Ouvrage / Entreprise",
+            autorites_locales: 'Autorités Locales',
+            riverains_communaute: 'Riverains / Communauté',
+            travailleurs_chantier: 'Travailleurs du Chantier',
+            maitrise_ouvrage_entreprise: "Maîtrise d'Ouvrage / Entreprise",
             direction_cfpt: 'Direction du CFPT',
         };
         const infoRows = [
             ['Sous-projet', (_b = data.subprojet) !== null && _b !== void 0 ? _b : '—'],
             ['Type de guide', (_c = guideLabels[guideType]) !== null && _c !== void 0 ? _c : guideType],
-            ['Nom', (_d = data.gi_nom) !== null && _d !== void 0 ? _d : '—'], // ← snake_case
+            ['Nom', (_d = data.gi_nom) !== null && _d !== void 0 ? _d : '—'],
             ['Fonction', (_e = data.gi_fonction) !== null && _e !== void 0 ? _e : '—'],
             ['Contact', (_f = data.gi_contact) !== null && _f !== void 0 ? _f : '—'],
             ['Date', data.gi_date ? new Date(data.gi_date).toLocaleDateString('fr-FR') : '—'],
@@ -586,19 +802,32 @@ function exportGuideEntretienWord(data) {
             ...(data.gi_type_contrat ? [['Type contrat', data.gi_type_contrat.toUpperCase()]] : []),
         ];
         const theme2Titles = {
-            autorites_locales: 'Perception du projet', riverains_communaute: 'Nuisances des travaux',
-            travailleurs_chantier: 'EPI et santé sécurité', maitrise_ouvrage_entreprise: 'Gestion E&S',
+            autorites_locales: 'Perception du projet',
+            riverains_communaute: 'Nuisances des travaux',
+            travailleurs_chantier: 'EPI et santé sécurité',
+            maitrise_ouvrage_entreprise: 'Gestion E&S',
             direction_cfpt: "Accessibilité et sécurité de l'ERP",
         };
         const theme3Titles = {
-            autorites_locales: 'Gestion des plaintes', riverains_communaute: 'Gestion des plaintes',
-            travailleurs_chantier: "Conditions d'emploi et MGP", maitrise_ouvrage_entreprise: 'Gestion des travailleurs',
+            autorites_locales: 'Gestion des plaintes',
+            riverains_communaute: 'Gestion des plaintes',
+            travailleurs_chantier: "Conditions d'emploi et MGP",
+            maitrise_ouvrage_entreprise: 'Gestion des travailleurs',
             direction_cfpt: 'Gestion quotidienne du CFPT',
         };
         const theme4Titles = {
-            riverains_communaute: 'Attentes pour le futur', maitrise_ouvrage_entreprise: 'Relations riverains et MGP',
+            riverains_communaute: 'Attentes pour le futur',
+            maitrise_ouvrage_entreprise: 'Relations riverains et MGP',
         };
         const doc = new docx_1.Document({
+            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
+            styles: {
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
+                paragraphStyles: [
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                ],
+            },
             sections: [
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
@@ -607,7 +836,14 @@ function exportGuideEntretienWord(data) {
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: "GUIDE D'ENTRETIEN", bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'PARTIES PRENANTES', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
                         new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-                        new docx_1.Table({ width: { size: 7000, type: docx_1.WidthType.DXA }, columnWidths: [2800, 4200], rows: infoRows.map(([label, val], i) => new docx_1.TableRow({ children: [new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }), new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] })] })) }),
+                        new docx_1.Table({
+                            width: { size: 7000, type: docx_1.WidthType.DXA },
+                            columnWidths: [2800, 4200],
+                            rows: infoRows.map(([label, val], i) => new docx_1.TableRow({ children: [
+                                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                                ] })),
+                        }),
                         pageBreak(),
                     ],
                 },
@@ -622,9 +858,17 @@ function exportGuideEntretienWord(data) {
                         ...buildThemeTable(data.theme2, isRiverains),
                         ...sectionTitle('03', (_j = theme3Titles[guideType]) !== null && _j !== void 0 ? _j : 'Thème 3'),
                         ...buildThemeTable(data.theme3, false),
-                        ...(data.theme4 ? [...sectionTitle('04', (_k = theme4Titles[guideType]) !== null && _k !== void 0 ? _k : 'Thème 4'), ...buildThemeTable(data.theme4, false)] : []),
-                        ...sectionTitle('05', "Notes de l'auditeur"),
-                        new docx_1.Paragraph({ spacing: { after: 160 }, border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } }, indent: { left: 280 }, children: [new docx_1.TextRun({ text: data.notes_auditeur || '—', size: 20, color: C.text, font: 'Calibri', italics: true })] }), // ← snake_case
+                        ...(data.theme4 ? [
+                            ...sectionTitle('04', (_k = theme4Titles[guideType]) !== null && _k !== void 0 ? _k : 'Thème 4'),
+                            ...buildThemeTable(data.theme4, false),
+                        ] : []),
+                        ...sectionTitle(data.theme4 ? '05' : '04', "Notes de l'auditeur"),
+                        new docx_1.Paragraph({
+                            spacing: { after: 160 },
+                            border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } },
+                            indent: { left: 280 },
+                            children: [new docx_1.TextRun({ text: data.notes_auditeur || '—', size: 20, color: C.text, font: 'Calibri', italics: true })],
+                        }),
                         spacer(240),
                     ],
                 },

@@ -1,42 +1,52 @@
 // ─────────────────────────────────────────────────────────────────────────────
-//  poll.service.ts  —  MySQL version
+//  poll.service.ts  —  MySQL version (aligné avec la DB)
 //
-//  Différences vs Mongoose :
-//  • eventName (string libre) → event_id (CHAR(16) FK vers events)
-//    Le frontend passe désormais un eventId, pas un nom en clair.
-//  • L'agrégation $lookup → simple JOIN MySQL
-//  • Pas de doublon-check par nom : géré côté events (unique event_name)
+//  Tables :
+//  • events (id CHAR(16), event_name, created_at, updated_at)
+//  • polls (id CHAR(16), event_id, name, phone, rating, feedback, submitted_at)
+//
+//  Vues disponibles :
+//  • v_poll_stats_by_event  → stats par événement
+//  • v_polls_with_event     → votes avec nom d'événement
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { RowDataPacket, ResultSetHeader } from 'mysql2';  // ← AJOUTER CET IMPORT
-import { pool }  from '../config/databaseConnect';
+import { RowDataPacket, ResultSetHeader } from 'mysql2';
+import { pool } from '../config/databaseConnect';
 import { newId } from '../utils/id';
 
-// CORRECTION : Étendre RowDataPacket
+// Interface pour un vote (alignée avec la table polls)
 interface PollRow extends RowDataPacket {
-  id:           string;
-  event_id:     string;
-  name:         string;
-  phone:        string;
-  rating:       number;
-  feedback:     string;
+  id: string;           // CHAR(16)
+  event_id: string;     // CHAR(16) FK
+  name: string;         // VARCHAR(255)
+  phone: string;        // VARCHAR(30)
+  rating: number;       // TINYINT (1-10)
+  feedback: string;     // VARCHAR(500)
   submitted_at: Date;
-  event_name?:  string;  // Optionnel car vient du JOIN
+  event_name?: string;  // Optionnel (vient du JOIN)
 }
 
-// CORRECTION : Étendre RowDataPacket
+// Interface pour un événement avec stats (vue v_poll_stats_by_event)
 interface EventWithStats extends RowDataPacket {
-  event_id:     string;
-  event_name:   string;
-  total_responses: number;   // ← pas nb_reponses
-  avg_rating:    number | null;  // ← pas note_moyenne
-  min_rating:    number | null;  // ← pas note_min
-  max_rating:    number | null; 
+  event_id: string;      // CHAR(16)
+  event_name: string;    // VARCHAR(255)
+  nb_reponses: number;   // COUNT des votes
+  note_moyenne: number | null;  // MOYENNE des ratings
+  note_min: number | null;      // MIN rating
+  note_max: number | null;      // MAX rating
+}
+
+// Interface pour un événement simple
+interface EventRow extends RowDataPacket {
+  id: string;
+  event_name: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export class PollService {
 
-  // ── CRÉER UN ÉVÉNEMENT (ex-createNewPoll) ─────────────────────────────────
+
   async createNewPoll(eventName: string): Promise<{ id: string; eventName: string }> {
     if (!eventName || typeof eventName !== 'string') {
       throw new Error('Le nom doit être une chaîne de caractères');
@@ -44,101 +54,154 @@ export class PollService {
 
     const trimmedName = eventName.trim();
 
-    // CORRECTION : Utiliser RowDataPacket[]
-    const [existing] = await pool.query<RowDataPacket[]>(
+    // Vérifier si l'événement existe déjà
+    const [existing] = await pool.query<EventRow[]>(
       'SELECT id FROM events WHERE event_name = ? LIMIT 1',
       [trimmedName]
     );
+    
     if (existing.length > 0) {
       throw new Error(`Un sondage "${trimmedName}" existe déjà`);
     }
 
-    const id = newId();
-    await pool.query('CALL sp_create_event(?,?)', [id, trimmedName]);
+    // Créer l'événement avec sp_create_event
+    const id = newId(); // CHAR(16)
+    await pool.query('CALL sp_create_event(?, ?)', [id, trimmedName]);
 
     return { id, eventName: trimmedName };
   }
 
-  // ── SOUMETTRE UN VOTE ─────────────────────────────────────────────────────
+
   async createVote(eventId: string, voteData: {
-    name:     string;
-    phone:    string;
-    rating:   number;
+    name: string;
+    phone: string;
+    rating: number;
     feedback: string;
   }) {
     if (!eventId) throw new Error("ID d'événement requis");
 
-    const id = newId();
+    // Validation du rating (1-10)
+    if (voteData.rating < 1 || voteData.rating > 10) {
+      throw new Error("La note doit être comprise entre 1 et 10");
+    }
+
+    const id = newId(); // CHAR(16)
+    
+    // Appel à sp_create_poll avec les bons paramètres
     await pool.query(
-      'CALL sp_create_poll(?,?,?,?,?,?)',
+      'CALL sp_create_poll(?, ?, ?, ?, ?, ?)',
       [id, eventId, voteData.name, voteData.phone, voteData.rating, voteData.feedback]
     );
 
-    return { id, eventId, ...voteData, submittedAt: new Date() };
+    return { 
+      id, 
+      eventId, 
+      ...voteData, 
+      submittedAt: new Date() 
+    };
   }
 
-  // ── TOUS LES VOTES ────────────────────────────────────────────────────────
-  async getAll() {
-    const [rows] = await pool.query<PollRow[]>(
-      `SELECT p.*, e.event_name
-       FROM polls p
-       JOIN events e ON e.id = p.event_id
-       ORDER BY p.submitted_at DESC`
-    );
-    return rows;
-  }
-
-  // ── VOTES D'UN ÉVÉNEMENT ──────────────────────────────────────────────────
-  async getByEventId(eventId: string) {
-    const [rows] = await pool.query<PollRow[]>(
-      `SELECT p.*, e.event_name
-       FROM polls p
-       JOIN events e ON e.id = p.event_id
-       WHERE p.event_id = ?
-       ORDER BY p.submitted_at DESC`,
+  async getEventStats(eventId: string) {
+    const [rows] = await pool.query<EventWithStats[]>(
+      'SELECT * FROM v_poll_stats_by_event WHERE event_id = ?',
       [eventId]
     );
-    return rows;
+    
+    if (rows.length === 0) return null;
+    
+    const stats = rows[0];
+    return {
+      averageRating: stats.note_moyenne?.toFixed(1) || '0',
+      totalVotes: stats.nb_reponses,
+      positiveCount: 0, // Sera calculé dans le controller
+      neutralCount: 0,
+      negativeCount: 0
+    };
   }
 
-  // ── LISTE DES ÉVÉNEMENTS AVEC STATS ───────────────────────────────────────
-  // Correspond à l'ancienne getAllEventNames() — utilise la vue v_poll_stats
-  async getAllEventNames() {
-    const [rows] = await pool.query<EventWithStats[]>(
-      'SELECT * v_poll_stats_by_event ORDER BY event_id'
-    );
 
-    return rows.map(r => ({
-      id:          r.event_id,
-      name:        r.event_name,
-      nb_reponses: r.total_responses,
-      note_moyenne: r.avg_rating,
-      note_min:     r.min_rating,
-      note_max:     r.max_rating
-    }));
-  }
-
-  // ── SUPPRIMER UN VOTE ─────────────────────────────────────────────────────
   async deleteVote(id: string) {
-    // CORRECTION : Utiliser ResultSetHeader
     const [result] = await pool.query<ResultSetHeader>(
       'DELETE FROM polls WHERE id = ?',
       [id]
     );
 
-    if (result.affectedRows === 0) throw new Error('Vote non trouvé');
+    if (result.affectedRows === 0) {
+      throw new Error('Vote non trouvé');
+    }
+    
     return { deleted: true, id };
   }
 
-  // ── SUPPRIMER UN ÉVÉNEMENT ET TOUS SES VOTES (CASCADE) ───────────────────
-  // La FK ON DELETE CASCADE s'occupe des polls automatiquement
+
   async deleteEventById(eventId: string) {
-    // CORRECTION : Utiliser ResultSetHeader
     const [result] = await pool.query<ResultSetHeader>(
       'DELETE FROM events WHERE id = ?',
       [eventId]
     );
 
-    return { eventId, deletedEvent: result.affectedRows > 0 };
+    return { 
+      eventId, 
+      deletedEvent: result.affectedRows > 0 
+    };
   }
+
+  async updateEvent(eventId: string, eventName: string) {
+    const [result] = await pool.query<ResultSetHeader>(
+      'UPDATE events SET event_name = ?, updated_at = NOW() WHERE id = ?',
+      [eventName, eventId]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new Error('Événement non trouvé');
+    }
+
+    return { id: eventId, eventName };
+  }
+
+ 
+  async getLatestEvent() {
+    const [rows] = await pool.query<EventRow[]>(
+      'SELECT * FROM events ORDER BY created_at DESC LIMIT 1'
+    );
+
+    if (rows.length === 0) {
+      throw new Error('Aucun événement trouvé');
+    }
+
+    return rows[0];
+  }
+
+
+async getAll() {
+  const [rows] = await pool.query<PollRow[]>(
+    'SELECT * FROM v_polls_with_event ORDER BY submitted_at DESC'
+  );
+  return rows;
+}
+
+
+async getByEventId(eventId: string) {
+  const [rows] = await pool.query<PollRow[]>(
+    'SELECT * FROM v_polls_with_event WHERE event_id = ? ORDER BY submitted_at DESC',
+    [eventId]
+  );
+  return rows;
+}
+
+
+async getAllEventNames() {
+  const [rows] = await pool.query<EventWithStats[]>(
+    'SELECT * FROM v_poll_stats_by_event ORDER BY nb_reponses DESC'
+  );
+  
+  return rows.map(row => ({
+    id: row.event_id,
+    name: row.event_name,
+    voteCount: row.nb_reponses,
+    noteMoyenne: row.note_moyenne,
+    noteMin: row.note_min,
+    noteMax: row.note_max
+  }));
+}
 }

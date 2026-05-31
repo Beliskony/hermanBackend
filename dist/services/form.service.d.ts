@@ -80,8 +80,126 @@ export declare class FormService {
             };
         };
     }>;
-    createGuideEntretien(data: any): Promise<any>;
-    getGuideEntretienById(id: string): Promise<any>;
+    createGuideEntretien(data: any): Promise<{
+        id: any;
+        guide_type: any;
+        subprojet: any;
+        gi_nom: any;
+        gi_fonction: any;
+        gi_contact: any;
+        gi_date: any;
+        gi_lieu: any;
+        gi_type_entretien: any;
+        gi_employeur: any;
+        gi_type_contrat: any;
+        notes_auditeur: any;
+        created_at: any;
+        updated_at: any;
+        theme1: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        };
+        theme2: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                nuisance_poussiere: boolean;
+                nuisance_bruit: boolean;
+                nuisance_circulation: boolean;
+                nuisance_odeurs: boolean;
+                nuisance_dechets: boolean;
+                nuisancesObservees: {
+                    poussiere: boolean;
+                    bruit: boolean;
+                    circulation: boolean;
+                    odeurs: boolean;
+                    dechets: boolean;
+                };
+                sort_order: any;
+            }[];
+        };
+        theme3: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        };
+        theme4: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        } | undefined;
+    } | null>;
+    getGuideEntretienById(id: string): Promise<{
+        id: any;
+        guide_type: any;
+        subprojet: any;
+        gi_nom: any;
+        gi_fonction: any;
+        gi_contact: any;
+        gi_date: any;
+        gi_lieu: any;
+        gi_type_entretien: any;
+        gi_employeur: any;
+        gi_type_contrat: any;
+        notes_auditeur: any;
+        created_at: any;
+        updated_at: any;
+        theme1: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        };
+        theme2: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                nuisance_poussiere: boolean;
+                nuisance_bruit: boolean;
+                nuisance_circulation: boolean;
+                nuisance_odeurs: boolean;
+                nuisance_dechets: boolean;
+                nuisancesObservees: {
+                    poussiere: boolean;
+                    bruit: boolean;
+                    circulation: boolean;
+                    odeurs: boolean;
+                    dechets: boolean;
+                };
+                sort_order: any;
+            }[];
+        };
+        theme3: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        };
+        theme4: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        } | undefined;
+    } | null>;
     getAllGuideEntretiens(filters?: {
         guideType?: string;
         subprojet?: string;
@@ -91,7 +209,66 @@ export declare class FormService {
         page: number;
         totalPages: number;
     }>;
-    updateGuideEntretien(id: string, data: any): Promise<any>;
+    updateGuideEntretien(id: string, data: any): Promise<{
+        id: any;
+        guide_type: any;
+        subprojet: any;
+        gi_nom: any;
+        gi_fonction: any;
+        gi_contact: any;
+        gi_date: any;
+        gi_lieu: any;
+        gi_type_entretien: any;
+        gi_employeur: any;
+        gi_type_contrat: any;
+        notes_auditeur: any;
+        created_at: any;
+        updated_at: any;
+        theme1: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        };
+        theme2: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                nuisance_poussiere: boolean;
+                nuisance_bruit: boolean;
+                nuisance_circulation: boolean;
+                nuisance_odeurs: boolean;
+                nuisance_dechets: boolean;
+                nuisancesObservees: {
+                    poussiere: boolean;
+                    bruit: boolean;
+                    circulation: boolean;
+                    odeurs: boolean;
+                    dechets: boolean;
+                };
+                sort_order: any;
+            }[];
+        };
+        theme3: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        };
+        theme4: {
+            questions: {
+                question_id: any;
+                question: any;
+                reponse: any;
+                sort_order: any;
+            }[];
+        } | undefined;
+    } | null>;
     deleteGuideEntretien(id: string): Promise<boolean>;
     createChecklistAudit(data: any): Promise<any>;
     getChecklistAuditById(id: string): Promise<any>;
@@ -131,6 +308,27 @@ export declare class FormService {
     private _insertConducteurQuestions;
     private _insertGuideQuestions;
     private _buildGuideResponse;
+    getGlobalStats(): Promise<{
+        total: any;
+        byType: {
+            apes: {
+                total: any;
+                stats: any;
+            };
+            guide: {
+                total: any;
+                stats: any;
+            };
+            checklistAudit: {
+                total: any;
+            };
+            checklistConducteur: {
+                total: any;
+            };
+        };
+        recent: any;
+        timestamp: string;
+    }>;
     private _buildAuditResponse;
     private _buildConducteurResponse;
     private _parseJson;

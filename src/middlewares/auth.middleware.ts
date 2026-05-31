@@ -6,9 +6,11 @@ const JWT_SECRET = process.env.JWT_SECRET as string;
 
 export interface AuthRequest extends Request {
   user?: {
-    userId: string;
+    id: string;
     role: string;
     email: string;
+    username: string;
+    phone_number: string;
   };
 }
 

@@ -21,17 +21,17 @@ const mailConfig = {
     user: process.env.MAIL_USER,
     password: process.env.MAIL_PASSWORD,
     from: '"Assistance Conseils Environnement" <contacts@acenviro.pro>',
-    adminTo: 'hermanassoua@acenviro.pro',
+    adminTo: process.env.MAIL_ADMIN,
 };
 // ─── Couleurs urgence ─────────────────────────────────────────────────────────
 // Clés alignées avec les <option value="..."> du formulaire front
 const urgencyStyle = {
-    urgent: { color: '#8B0000', bg: '#FCE4EC', label: 'Urgent' },
-    élevé: { color: '#C0392B', bg: '#FFEBEE', label: 'Court terme' },
-    moyen: { color: '#C07000', bg: '#FFF8E1', label: 'Moyen terme' },
-    faible: { color: '#1A7A4A', bg: '#E8F5E9', label: 'Long terme' },
+    'Urgent (sous 1 mois)': { color: '#8B0000', bg: '#FCE4EC', label: 'Urgent (sous 1 mois)' },
+    'Court terme (1-3 mois)': { color: '#C0392B', bg: '#FFEBEE', label: 'Court terme (1-3 mois)' },
+    'Moyen terme (3-6 mois)': { color: '#C07000', bg: '#FFF8E1', label: 'Moyen terme (3-6 mois)' },
+    'Long terme (6+ mois)': { color: '#1A7A4A', bg: '#E8F5E9', label: 'Long terme (6+ mois)' },
 };
-const DEFAULT_URGENCY = urgencyStyle['moyen'];
+const DEFAULT_URGENCY = urgencyStyle['Moyen terme (3-6 mois)'];
 // ─── Service ─────────────────────────────────────────────────────────────────
 class MailService {
     constructor() {
@@ -75,8 +75,7 @@ class MailService {
     // ─── 1. Confirmation client ───────────────────────────────────────────────
     sendContactConfirmation(form) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            const urgency = urgencyStyle[(_a = form.urgency) === null || _a === void 0 ? void 0 : _a.toLowerCase()] || DEFAULT_URGENCY;
+            const urgency = urgencyStyle[form.urgency] || DEFAULT_URGENCY;
             yield this.send({
                 to: form.email,
                 replyTo: mailConfig.adminTo,
@@ -122,45 +121,80 @@ class MailService {
     // ─── 2. Notification admin ────────────────────────────────────────────────
     sendContactNotificationToAdmin(form) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a;
-            const urgency = urgencyStyle[(_a = form.urgency) === null || _a === void 0 ? void 0 : _a.toLowerCase()] || DEFAULT_URGENCY;
+            const urgency = urgencyStyle[form.urgency] || DEFAULT_URGENCY;
             const receivedAt = new Date().toLocaleDateString('fr-FR', {
                 day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
             });
             yield this.send({
-                to: mailConfig.adminTo,
+                to: mailConfig.adminTo || 'hermannassoua@acenviro.pro',
                 replyTo: form.email,
                 subject: `[Nouveau contact] ${form.name} — ${form.service} (${urgency.label})`,
                 html: this.wrapTemplate({
-                    title: 'Nouvelle demande de contact',
+                    title: `Nouvelle demande de ${form.service}`,
                     color: '#1B3A5C',
                     content: `
-          <p style="font-size:15px;color:#333;">Une nouvelle demande de contact a été soumise sur le site.</p>
-          <div style="text-align:center;margin:16px 0;">
-            <span style="display:inline-block;background:${urgency.bg};color:${urgency.color};padding:8px 24px;border-radius:20px;font-size:15px;font-weight:bold;border:2px solid ${urgency.color};">
-              Urgence : ${urgency.label}
-            </span>
-          </div>
-          <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-            ${this.infoRow('Nom', form.name)}
-            ${this.infoRow('Email', form.email)}
-            ${this.infoRow('Téléphone', form.phone || '—')}
-            ${this.infoRow('Entreprise', form.company || '—')}
-            ${this.infoRow('Service', form.service)}
-            ${this.infoRow('Reçu le', receivedAt)}
-          </table>
-          <div style="background:#F0F6FB;border-radius:8px;padding:16px 20px;margin:20px 0;">
-            <p style="margin:0 0 8px;font-weight:bold;color:#1B3A5C;font-size:13px;">Message du client :</p>
-            <p style="margin:0;color:#333;font-size:14px;line-height:1.7;white-space:pre-line;">${form.message}</p>
-          </div>
-          <div style="text-align:center;margin:28px 0;">
-            <a href="mailto:${form.email}?subject=Re: Votre demande — ${form.service}"
-               style="background:#2E75B6;color:#fff;padding:12px 30px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;">
-              Répondre à ${form.name}
-            </a>
-          </div>
-        `,
-                    footer: 'Ce message a été transmis automatiquement depuis le formulaire de contact du site.',
+        <p style="font-size:14px;color:#555;margin:0 0 24px;">ACENVIRO — Assistance Conseils Environnement</p>
+
+        <p style="font-size:12px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid #E9ECEF;">
+          Informations personnelles
+        </p>
+        <table style="width:100%;border-collapse:separate;border-spacing:12px 0;margin:0 0 24px;">
+          <tr>
+            <td style="width:50%;padding:16px;background:#F8F9FA;border-radius:8px;vertical-align:top;">
+              <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Nom complet</p>
+              <p style="margin:0;font-size:14px;color:#1A1A2E;">${form.name}</p>
+            </td>
+            <td style="width:50%;padding:16px;background:#F8F9FA;border-radius:8px;vertical-align:top;">
+              <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Email</p>
+              <p style="margin:0;font-size:14px;color:#1A1A2E;">${form.email}</p>
+            </td>
+          </tr>
+          <tr><td style="height:12px;"></td></tr>
+          <tr>
+            <td style="width:50%;padding:16px;background:#F8F9FA;border-radius:8px;vertical-align:top;">
+              <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Téléphone</p>
+              <p style="margin:0;font-size:14px;color:#1A1A2E;">${form.phone || '—'}</p>
+            </td>
+            <td style="width:50%;padding:16px;background:#F8F9FA;border-radius:8px;vertical-align:top;">
+              <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Organisation</p>
+              <p style="margin:0;font-size:14px;color:#1A1A2E;">${form.company || '—'}</p>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size:12px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid #E9ECEF;">
+          Besoin client
+        </p>
+        <table style="width:100%;border-collapse:separate;border-spacing:12px 0;margin:0 0 24px;">
+          <tr>
+            <td style="width:50%;padding:16px;background:#F8F9FA;border-radius:8px;vertical-align:top;">
+              <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Type de besoin</p>
+              <p style="margin:0;font-size:14px;color:#1A1A2E;">${form.service}</p>
+            </td>
+            <td style="width:50%;padding:16px;background:#F8F9FA;border-radius:8px;vertical-align:top;">
+              <p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Urgence du projet</p>
+              <span style="display:inline-block;background:${urgency.bg};color:${urgency.color};padding:5px 14px;border-radius:20px;font-size:13px;font-weight:bold;">
+                ${urgency.label}
+              </span>
+            </td>
+          </tr>
+        </table>
+
+        <p style="font-size:12px;font-weight:bold;color:#888;text-transform:uppercase;letter-spacing:1px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid #E9ECEF;">
+          Message du client
+        </p>
+        <div style="padding:16px;background:#F8F9FA;border-radius:8px;margin:0 0 24px;">
+          <p style="margin:0;font-size:14px;color:#333;line-height:1.7;white-space:pre-line;">${form.message}</p>
+        </div>
+
+        <div style="text-align:center;margin:28px 0 8px;">
+          <a href="mailto:${form.email}?subject=Re: Votre demande — ${form.service}"
+             style="background:#1B3A5C;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;">
+            Répondre à ${form.name} →
+          </a>
+        </div>
+      `,
+                    footer: `Message reçu le ${receivedAt} depuis le formulaire de contact du site.`,
                 }),
             });
         });

@@ -9,6 +9,12 @@ interface PollRow extends RowDataPacket {
     submitted_at: Date;
     event_name?: string;
 }
+interface EventRow extends RowDataPacket {
+    id: string;
+    event_name: string;
+    created_at: Date;
+    updated_at: Date;
+}
 export declare class PollService {
     createNewPoll(eventName: string): Promise<{
         id: string;
@@ -28,16 +34,13 @@ export declare class PollService {
         id: string;
         eventId: string;
     }>;
-    getAll(): Promise<PollRow[]>;
-    getByEventId(eventId: string): Promise<PollRow[]>;
-    getAllEventNames(): Promise<{
-        id: string;
-        name: string;
-        nb_reponses: number;
-        note_moyenne: number | null;
-        note_min: number | null;
-        note_max: number | null;
-    }[]>;
+    getEventStats(eventId: string): Promise<{
+        averageRating: string;
+        totalVotes: number;
+        positiveCount: number;
+        neutralCount: number;
+        negativeCount: number;
+    } | null>;
     deleteVote(id: string): Promise<{
         deleted: boolean;
         id: string;
@@ -46,6 +49,21 @@ export declare class PollService {
         eventId: string;
         deletedEvent: boolean;
     }>;
+    updateEvent(eventId: string, eventName: string): Promise<{
+        id: string;
+        eventName: string;
+    }>;
+    getLatestEvent(): Promise<EventRow>;
+    getAll(): Promise<PollRow[]>;
+    getByEventId(eventId: string): Promise<PollRow[]>;
+    getAllEventNames(): Promise<{
+        id: string;
+        name: string;
+        voteCount: number;
+        noteMoyenne: number | null;
+        noteMin: number | null;
+        noteMax: number | null;
+    }[]>;
 }
 export {};
 //# sourceMappingURL=poll.service.d.ts.map

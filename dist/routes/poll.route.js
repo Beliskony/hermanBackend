@@ -4,15 +4,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const poll_controller_1 = require("../controllers/poll.controller");
 const auth_middleware_1 = require("../middlewares/auth.middleware");
-const Pollrouter = (0, express_1.Router)();
-// Routes pour l'administration
-Pollrouter.post('/admin/events', auth_middleware_1.authMiddleware, poll_controller_1.createNewPollEvent); // Créer un nouvel événement/sondage
-Pollrouter.get('/admin/events', auth_middleware_1.authMiddleware, poll_controller_1.getAllEvents); // Lister tous les événements
-Pollrouter.delete('/admin/events/:eventName', auth_middleware_1.authMiddleware, poll_controller_1.deleteEvent); // Supprimer un événement complet
-Pollrouter.get('/admin/votes', auth_middleware_1.authMiddleware, poll_controller_1.getPolls); // Récupérer tous les votes
-Pollrouter.get('/admin/votes/event/:eventName', auth_middleware_1.authMiddleware, poll_controller_1.getPollsByEvent); // Récupérer votes par événement
-Pollrouter.delete('/admin/votes/:id', auth_middleware_1.authMiddleware, poll_controller_1.deletePoll); // Supprimer un vote spécifique
-// Routes publiques pour les utilisateurs
-Pollrouter.post('/vote', poll_controller_1.createPoll); // Soumettre un vote
-exports.default = Pollrouter;
+const pollRouter = (0, express_1.Router)();
+const controller = new poll_controller_1.PollController();
+// ── Events admin ─────────────────────────────────────────────
+pollRouter.post('/newEvents', auth_middleware_1.authMiddleware, controller.createNewPollEvent);
+pollRouter.get('/admin/events', auth_middleware_1.authMiddleware, controller.getAllEvents);
+pollRouter.put('/updateEvent/:id', auth_middleware_1.authMiddleware, controller.updateEvent);
+pollRouter.delete('/deleteEvent/:eventId', auth_middleware_1.authMiddleware, controller.deleteEvent);
+// ── Events public ─────────────────────────────────────────────
+pollRouter.get('/latestEvent', controller.getLatestEvent);
+// ── Votes admin ───────────────────────────────────────────────
+pollRouter.get('/admin/votes', auth_middleware_1.authMiddleware, controller.getPolls);
+pollRouter.get('/votes/event/:eventId', auth_middleware_1.authMiddleware, controller.getPollsByEvent);
+pollRouter.delete('/admin/votes/:id', auth_middleware_1.authMiddleware, controller.deletePoll);
+// ── Votes public ──────────────────────────────────────────────
+pollRouter.post('/vote', controller.createPoll);
+exports.default = pollRouter;
 //# sourceMappingURL=poll.route.js.map

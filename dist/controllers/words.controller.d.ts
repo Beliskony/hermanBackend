@@ -1,30 +1,12 @@
 import { Request, Response } from 'express';
 export declare class WordExportController {
     /**
-     * Extrait l'ID des paramètres de requête
+     * Route UNIQUE pour exporter n'importe quel formulaire
+     * GET /words/export/:id
+     *
+     * Détecte automatiquement le type de formulaire et génère le Word correspondant
      */
-    private getParamId;
-    /**
-     * Exporter un formulaire APES en Word
-     * GET /words/form/:id/export
-     */
-    exportFormToWord(req: Request, res: Response): Promise<void>;
-    /**
-     * Exporter une checklist d'audit en Word
-     * GET /words/checklist-audit/:id/export
-     */
-    exportChecklistAuditToWord(req: Request, res: Response): Promise<void>;
-    /**
-     * Exporter une checklist conducteur de travaux en Word
-     * GET /words/checklist-conducteur/:id/export
-     */
-    exportChecklistConducteurToWord(req: Request, res: Response): Promise<void>;
-    /**
-     * Exporter un guide d'entretien en Word
-     * GET /words/guide-entretien/:id/export
-     */
-    exportGuideEntretienToWord(req: Request, res: Response): Promise<void>;
+    exportAnyFormToWord(req: Request, res: Response): Promise<void>;
 }
-declare const _default: WordExportController;
-export default _default;
+export default WordExportController;
 //# sourceMappingURL=words.controller.d.ts.map

@@ -1,12 +1,14 @@
 "use strict";
 // ─────────────────────────────────────────────────────────────────────────────
-//  poll.service.ts  —  MySQL version
+//  poll.service.ts  —  MySQL version (aligné avec la DB)
 //
-//  Différences vs Mongoose :
-//  • eventName (string libre) → event_id (CHAR(16) FK vers events)
-//    Le frontend passe désormais un eventId, pas un nom en clair.
-//  • L'agrégation $lookup → simple JOIN MySQL
-//  • Pas de doublon-check par nom : géré côté events (unique event_name)
+//  Tables :
+//  • events (id CHAR(16), event_name, created_at, updated_at)
+//  • polls (id CHAR(16), event_id, name, phone, rating, feedback, submitted_at)
+//
+//  Vues disponibles :
+//  • v_poll_stats_by_event  → stats par événement
+//  • v_polls_with_event     → votes avec nom d'événement
 // ─────────────────────────────────────────────────────────────────────────────
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -22,86 +24,113 @@ exports.PollService = void 0;
 const databaseConnect_1 = require("../config/databaseConnect");
 const id_1 = require("../utils/id");
 class PollService {
-    // ── CRÉER UN ÉVÉNEMENT (ex-createNewPoll) ─────────────────────────────────
     createNewPoll(eventName) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!eventName || typeof eventName !== 'string') {
                 throw new Error('Le nom doit être une chaîne de caractères');
             }
             const trimmedName = eventName.trim();
-            // CORRECTION : Utiliser RowDataPacket[]
+            // Vérifier si l'événement existe déjà
             const [existing] = yield databaseConnect_1.pool.query('SELECT id FROM events WHERE event_name = ? LIMIT 1', [trimmedName]);
             if (existing.length > 0) {
                 throw new Error(`Un sondage "${trimmedName}" existe déjà`);
             }
-            const id = (0, id_1.newId)();
-            yield databaseConnect_1.pool.query('CALL sp_create_event(?,?)', [id, trimmedName]);
+            // Créer l'événement avec sp_create_event
+            const id = (0, id_1.newId)(); // CHAR(16)
+            yield databaseConnect_1.pool.query('CALL sp_create_event(?, ?)', [id, trimmedName]);
             return { id, eventName: trimmedName };
         });
     }
-    // ── SOUMETTRE UN VOTE ─────────────────────────────────────────────────────
     createVote(eventId, voteData) {
         return __awaiter(this, void 0, void 0, function* () {
             if (!eventId)
                 throw new Error("ID d'événement requis");
-            const id = (0, id_1.newId)();
-            yield databaseConnect_1.pool.query('CALL sp_create_poll(?,?,?,?,?,?)', [id, eventId, voteData.name, voteData.phone, voteData.rating, voteData.feedback]);
-            return Object.assign(Object.assign({ id, eventId }, voteData), { submittedAt: new Date() });
+            // Validation du rating (1-10)
+            if (voteData.rating < 1 || voteData.rating > 10) {
+                throw new Error("La note doit être comprise entre 1 et 10");
+            }
+            const id = (0, id_1.newId)(); // CHAR(16)
+            // Appel à sp_create_poll avec les bons paramètres
+            yield databaseConnect_1.pool.query('CALL sp_create_poll(?, ?, ?, ?, ?, ?)', [id, eventId, voteData.name, voteData.phone, voteData.rating, voteData.feedback]);
+            return Object.assign(Object.assign({ id,
+                eventId }, voteData), { submittedAt: new Date() });
         });
     }
-    // ── TOUS LES VOTES ────────────────────────────────────────────────────────
-    getAll() {
+    getEventStats(eventId) {
         return __awaiter(this, void 0, void 0, function* () {
-            const [rows] = yield databaseConnect_1.pool.query(`SELECT p.*, e.event_name
-       FROM polls p
-       JOIN events e ON e.id = p.event_id
-       ORDER BY p.submitted_at DESC`);
-            return rows;
+            var _a;
+            const [rows] = yield databaseConnect_1.pool.query('SELECT * FROM v_poll_stats_by_event WHERE event_id = ?', [eventId]);
+            if (rows.length === 0)
+                return null;
+            const stats = rows[0];
+            return {
+                averageRating: ((_a = stats.note_moyenne) === null || _a === void 0 ? void 0 : _a.toFixed(1)) || '0',
+                totalVotes: stats.nb_reponses,
+                positiveCount: 0, // Sera calculé dans le controller
+                neutralCount: 0,
+                negativeCount: 0
+            };
         });
     }
-    // ── VOTES D'UN ÉVÉNEMENT ──────────────────────────────────────────────────
-    getByEventId(eventId) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const [rows] = yield databaseConnect_1.pool.query(`SELECT p.*, e.event_name
-       FROM polls p
-       JOIN events e ON e.id = p.event_id
-       WHERE p.event_id = ?
-       ORDER BY p.submitted_at DESC`, [eventId]);
-            return rows;
-        });
-    }
-    // ── LISTE DES ÉVÉNEMENTS AVEC STATS ───────────────────────────────────────
-    // Correspond à l'ancienne getAllEventNames() — utilise la vue v_poll_stats
-    getAllEventNames() {
-        return __awaiter(this, void 0, void 0, function* () {
-            const [rows] = yield databaseConnect_1.pool.query('SELECT * v_poll_stats_by_event ORDER BY event_id');
-            return rows.map(r => ({
-                id: r.event_id,
-                name: r.event_name,
-                nb_reponses: r.total_responses,
-                note_moyenne: r.avg_rating,
-                note_min: r.min_rating,
-                note_max: r.max_rating
-            }));
-        });
-    }
-    // ── SUPPRIMER UN VOTE ─────────────────────────────────────────────────────
     deleteVote(id) {
         return __awaiter(this, void 0, void 0, function* () {
-            // CORRECTION : Utiliser ResultSetHeader
             const [result] = yield databaseConnect_1.pool.query('DELETE FROM polls WHERE id = ?', [id]);
-            if (result.affectedRows === 0)
+            if (result.affectedRows === 0) {
                 throw new Error('Vote non trouvé');
+            }
             return { deleted: true, id };
         });
     }
-    // ── SUPPRIMER UN ÉVÉNEMENT ET TOUS SES VOTES (CASCADE) ───────────────────
-    // La FK ON DELETE CASCADE s'occupe des polls automatiquement
     deleteEventById(eventId) {
         return __awaiter(this, void 0, void 0, function* () {
-            // CORRECTION : Utiliser ResultSetHeader
             const [result] = yield databaseConnect_1.pool.query('DELETE FROM events WHERE id = ?', [eventId]);
-            return { eventId, deletedEvent: result.affectedRows > 0 };
+            return {
+                eventId,
+                deletedEvent: result.affectedRows > 0
+            };
+        });
+    }
+    updateEvent(eventId, eventName) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [result] = yield databaseConnect_1.pool.query('UPDATE events SET event_name = ?, updated_at = NOW() WHERE id = ?', [eventName, eventId]);
+            if (result.affectedRows === 0) {
+                throw new Error('Événement non trouvé');
+            }
+            return { id: eventId, eventName };
+        });
+    }
+    getLatestEvent() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [rows] = yield databaseConnect_1.pool.query('SELECT * FROM events ORDER BY created_at DESC LIMIT 1');
+            if (rows.length === 0) {
+                throw new Error('Aucun événement trouvé');
+            }
+            return rows[0];
+        });
+    }
+    getAll() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [rows] = yield databaseConnect_1.pool.query('SELECT * FROM v_polls_with_event ORDER BY submitted_at DESC');
+            return rows;
+        });
+    }
+    getByEventId(eventId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [rows] = yield databaseConnect_1.pool.query('SELECT * FROM v_polls_with_event WHERE event_id = ? ORDER BY submitted_at DESC', [eventId]);
+            return rows;
+        });
+    }
+    getAllEventNames() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const [rows] = yield databaseConnect_1.pool.query('SELECT * FROM v_poll_stats_by_event ORDER BY nb_reponses DESC');
+            return rows.map(row => ({
+                id: row.event_id,
+                name: row.event_name,
+                voteCount: row.nb_reponses,
+                noteMoyenne: row.note_moyenne,
+                noteMin: row.note_min,
+                noteMax: row.note_max
+            }));
         });
     }
 }

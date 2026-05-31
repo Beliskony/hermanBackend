@@ -13,121 +13,100 @@ exports.WordExportController = void 0;
 const words_service_1 = require("../services/words.service");
 const form_service_1 = require("../services/form.service");
 const formService = new form_service_1.FormService();
+// Helper pour extraire un ID valide
+const getValidId = (param) => {
+    if (!param)
+        return null;
+    const id = Array.isArray(param) ? param[0] : param;
+    return id && /^[a-zA-Z0-9_-]{16}$/.test(id) ? id : null;
+};
+// Helper pour générer le nom du fichier
+const generateFilename = (type, name) => {
+    const safeName = String(name).replace(/\s+/g, '_').substring(0, 50);
+    return `${type}-${safeName}.docx`;
+};
 class WordExportController {
     /**
-     * Extrait l'ID des paramètres de requête
+     * Route UNIQUE pour exporter n'importe quel formulaire
+     * GET /words/export/:id
+     *
+     * Détecte automatiquement le type de formulaire et génère le Word correspondant
      */
-    getParamId(req) {
-        const { id } = req.params;
-        // Si c'est un tableau, prendre le premier élément, sinon utiliser la chaîne
-        return Array.isArray(id) ? id[0] : id;
-    }
-    /**
-     * Exporter un formulaire APES en Word
-     * GET /words/form/:id/export
-     */
-    exportFormToWord(req, res) {
+    exportAnyFormToWord(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const id = this.getParamId(req); // ← Correction ici
-                const formData = yield formService.getFormById(id);
-                if (!formData) {
-                    res.status(404).json({ message: 'Formulaire APES non trouvé' });
+                const id = getValidId(req.params.id);
+                if (!id) {
+                    res.status(400).json({ message: 'ID invalide (doit être 16 caractères alphanumériques)' });
                     return;
                 }
-                const buffer = yield (0, words_service_1.generateFormDataWordDocument)(formData);
-                const projectName = formData.project_name || 'projet';
-                const filename = `apes-${String(projectName).replace(/\s+/g, '_')}.docx`;
+                // Détection du type de formulaire
+                let type = null;
+                let data = null;
+                // 1. Essayer Guide Entretien
+                data = yield formService.getGuideEntretienById(id);
+                if (data)
+                    type = 'guide-entretien';
+                // 2. Essayer Checklist Audit
+                if (!data) {
+                    data = yield formService.getChecklistAuditById(id);
+                    if (data)
+                        type = 'checklist-audit';
+                }
+                // 3. Essayer Checklist Conducteur
+                if (!data) {
+                    data = yield formService.getChecklistConducteurById(id);
+                    if (data)
+                        type = 'checklist-conducteur';
+                }
+                // 4. Essayer APES Form
+                if (!data) {
+                    data = yield formService.getFormById(id);
+                    if (data)
+                        type = 'apes';
+                }
+                if (!data || !type) {
+                    res.status(404).json({ message: 'Formulaire non trouvé' });
+                    return;
+                }
+                // Génération du document Word selon le type
+                let buffer;
+                let filename;
+                switch (type) {
+                    case 'guide-entretien':
+                        buffer = yield (0, words_service_1.exportGuideEntretienWord)(data);
+                        filename = generateFilename(`guide-${data.guide_type || 'entretien'}`, data.subprojet || data.gi_nom || 'guide');
+                        break;
+                    case 'checklist-audit':
+                        buffer = yield (0, words_service_1.exportChecklistAuditWord)(data);
+                        filename = generateFilename('checklist-audit', data.subprojet || 'audit');
+                        break;
+                    case 'checklist-conducteur':
+                        buffer = yield (0, words_service_1.exportChecklistConducteurWord)(data);
+                        filename = generateFilename('checklist-conducteur', data.subprojet || 'conducteur');
+                        break;
+                    case 'apes':
+                        buffer = yield (0, words_service_1.generateFormDataWordDocument)(data);
+                        filename = generateFilename('apes', data.project_name || 'projet');
+                        break;
+                    default:
+                        res.status(400).json({ message: 'Type de formulaire non supporté' });
+                        return;
+                }
                 res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
                 res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
                 res.send(buffer);
             }
             catch (error) {
-                console.error('[WordExport] Erreur export APES:', error);
-                res.status(500).json({ message: 'Erreur lors de la génération du document Word APES' });
-            }
-        });
-    }
-    /**
-     * Exporter une checklist d'audit en Word
-     * GET /words/checklist-audit/:id/export
-     */
-    exportChecklistAuditToWord(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const id = this.getParamId(req); // ← Correction ici
-                const checklist = yield formService.getChecklistAuditById(id);
-                if (!checklist) {
-                    res.status(404).json({ message: "Checklist d'audit non trouvée" });
-                    return;
-                }
-                const buffer = yield (0, words_service_1.exportChecklistAuditWord)(checklist);
-                const subprojet = checklist.subprojet || 'checklist';
-                const filename = `checklist-audit-${String(subprojet).replace(/\s+/g, '_')}.docx`;
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-                res.send(buffer);
-            }
-            catch (error) {
-                console.error('[WordExport] Erreur export Checklist Audit:', error);
-                res.status(500).json({ message: 'Erreur lors de la génération du document Word Checklist Audit' });
-            }
-        });
-    }
-    /**
-     * Exporter une checklist conducteur de travaux en Word
-     * GET /words/checklist-conducteur/:id/export
-     */
-    exportChecklistConducteurToWord(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const id = this.getParamId(req); // ← Correction ici
-                const checklist = yield formService.getChecklistConducteurById(id);
-                if (!checklist) {
-                    res.status(404).json({ message: 'Checklist conducteur non trouvée' });
-                    return;
-                }
-                const buffer = yield (0, words_service_1.exportChecklistConducteurWord)(checklist);
-                const subprojet = checklist.subprojet || 'conducteur';
-                const filename = `checklist-conducteur-${String(subprojet).replace(/\s+/g, '_')}.docx`;
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-                res.send(buffer);
-            }
-            catch (error) {
-                console.error('[WordExport] Erreur export Checklist Conducteur:', error);
-                res.status(500).json({ message: 'Erreur lors de la génération du document Word Checklist Conducteur' });
-            }
-        });
-    }
-    /**
-     * Exporter un guide d'entretien en Word
-     * GET /words/guide-entretien/:id/export
-     */
-    exportGuideEntretienToWord(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const id = this.getParamId(req); // ← Correction ici
-                const guide = yield formService.getGuideEntretienById(id);
-                if (!guide) {
-                    res.status(404).json({ message: "Guide d'entretien non trouvé" });
-                    return;
-                }
-                const buffer = yield (0, words_service_1.exportGuideEntretienWord)(guide);
-                const subprojet = guide.subprojet || 'guide';
-                const guideType = guide.guide_type || 'entretien';
-                const filename = `guide-${guideType}-${String(subprojet).replace(/\s+/g, '_')}.docx`;
-                res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-                res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-                res.send(buffer);
-            }
-            catch (error) {
-                console.error('[WordExport] Erreur export Guide Entretien:', error);
-                res.status(500).json({ message: "Erreur lors de la génération du document Word Guide d'entretien" });
+                console.error('[WordExport] Erreur:', error);
+                res.status(500).json({
+                    message: 'Erreur lors de la génération du document Word',
+                    error: error instanceof Error ? error.message : 'Erreur inconnue'
+                });
             }
         });
     }
 }
 exports.WordExportController = WordExportController;
-exports.default = new WordExportController();
+exports.default = WordExportController;
 //# sourceMappingURL=words.controller.js.map

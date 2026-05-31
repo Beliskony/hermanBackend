@@ -287,17 +287,17 @@ export class FormService {
 
     await pool.query('CALL sp_save_guide_entretien(?,?,?,?,?,?,?,?,?,?,?,?)', [
       id,
-      data.guideType,
+      data.guide_type     ?? data.guideType,
       data.subprojet,
-      data.generalInfo.nom,
-      data.generalInfo.fonction,
-      data.generalInfo.contact  ?? '',
-      data.generalInfo.date,
-      data.generalInfo.lieu,
-      data.generalInfo.typeEntretien ?? '',
-      data.generalInfo.employeur     ?? '',
-      data.generalInfo.typeContrat   ?? '',
-      data.notesAuditeur ?? '',
+      data.gi_nom         ?? data.generalInfo?.nom,
+      data.gi_fonction    ?? data.generalInfo?.fonction,
+      data.gi_contact     ?? data.generalInfo?.contact     ?? '',
+      data.gi_date        ?? data.generalInfo?.date,
+      data.gi_lieu        ?? data.generalInfo?.lieu,
+      data.gi_type_entretien ?? data.generalInfo?.typeEntretien ?? '',
+      data.gi_employeur   ?? data.generalInfo?.employeur   ?? '',
+      data.gi_type_contrat ?? data.generalInfo?.typeContrat ?? '',
+      data.notes_auditeur ?? data.notesAuditeur ?? '',
     ]);
 
     // Insérer les questions de chaque thème
@@ -348,17 +348,17 @@ export class FormService {
   async updateGuideEntretien(id: string, data: any) {
     await pool.query('CALL sp_save_guide_entretien(?,?,?,?,?,?,?,?,?,?,?,?)', [
       id,
-      data.guideType,
+      data.guide_type     ?? data.guideType,
       data.subprojet,
-      data.generalInfo.nom,
-      data.generalInfo.fonction,
-      data.generalInfo.contact  ?? '',
-      data.generalInfo.date,
-      data.generalInfo.lieu,
-      data.generalInfo.typeEntretien ?? '',
-      data.generalInfo.employeur     ?? '',
-      data.generalInfo.typeContrat   ?? '',
-      data.notesAuditeur ?? '',
+      data.gi_nom         ?? data.generalInfo?.nom,
+      data.gi_fonction    ?? data.generalInfo?.fonction,
+      data.gi_contact     ?? data.generalInfo?.contact     ?? '',
+      data.gi_date        ?? data.generalInfo?.date,
+      data.gi_lieu        ?? data.generalInfo?.lieu,
+      data.gi_type_entretien ?? data.generalInfo?.typeEntretien ?? '',
+      data.gi_employeur   ?? data.generalInfo?.employeur   ?? '',
+      data.gi_type_contrat ?? data.generalInfo?.typeContrat ?? '',
+      data.notes_auditeur ?? data.notesAuditeur ?? '',
     ]);
 
     // Re-synchroniser les questions : supprimer + réinsérer
@@ -817,29 +817,138 @@ export class FormService {
   // ── Reconstructeurs (DB rows → shape Mongoose) ────────────────────────────
 
   private _buildGuideResponse(row: any, questions: any[]) {
-    const byTheme = (key: string) => questions.filter(q => q.theme_key === key);
-    return {
-      ...row,
-      generalInfo: {
-        nom: row.gi_nom, fonction: row.gi_fonction, contact: row.gi_contact,
-        date: row.gi_date, lieu: row.gi_lieu, typeEntretien: row.gi_type_entretien,
-        employeur: row.gi_employeur, typeContrat: row.gi_type_contrat,
-      },
-      theme1: { questions: byTheme('t1') },
-      theme2: { questions: byTheme('t2').map((q: any) => ({
-        ...q,
-        nuisancesObservees: q.nuisance_poussiere !== null ? {
-          poussiere:   !!q.nuisance_poussiere,
-          bruit:       !!q.nuisance_bruit,
-          circulation: !!q.nuisance_circulation,
-          odeurs:      !!q.nuisance_odeurs,
-          dechets:     !!q.nuisance_dechets,
-        } : undefined,
-      })) },
-      theme3: { questions: byTheme('t3') },
-      theme4: byTheme('t4').length > 0 ? { questions: byTheme('t4') } : undefined,
-    };
-  }
+  const byTheme = (key: string) => questions.filter(q => q.theme_key === key);
+  
+  // Retourne les champs directement (sans generalInfo) pour que words.service.ts les trouve
+  return {
+    id: row.id,
+    guide_type: row.guide_type,
+    subprojet: row.subprojet,
+    // Champs directs
+    gi_nom: row.gi_nom,
+    gi_fonction: row.gi_fonction,
+    gi_contact: row.gi_contact,
+    gi_date: row.gi_date,
+    gi_lieu: row.gi_lieu,
+    gi_type_entretien: row.gi_type_entretien,
+    gi_employeur: row.gi_employeur,
+    gi_type_contrat: row.gi_type_contrat,
+    notes_auditeur: row.notes_auditeur,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    // Thème 1
+    theme1: { 
+      questions: byTheme('t1').map((q: any) => ({
+        question_id: q.question_id,
+        question: q.question,
+        reponse: q.reponse,
+        sort_order: q.sort_order,
+      }))
+    },
+    // Thème 2 (avec nuisances pour riverains)
+    theme2: { 
+      questions: byTheme('t2').map((q: any) => ({
+        question_id: q.question_id,
+        question: q.question,
+        reponse: q.reponse,
+        nuisance_poussiere: q.nuisance_poussiere === 1,
+        nuisance_bruit: q.nuisance_bruit === 1,
+        nuisance_circulation: q.nuisance_circulation === 1,
+        nuisance_odeurs: q.nuisance_odeurs === 1,
+        nuisance_dechets: q.nuisance_dechets === 1,
+        nuisancesObservees: {
+          poussiere: q.nuisance_poussiere === 1,
+          bruit: q.nuisance_bruit === 1,
+          circulation: q.nuisance_circulation === 1,
+          odeurs: q.nuisance_odeurs === 1,
+          dechets: q.nuisance_dechets === 1,
+        },
+        sort_order: q.sort_order,
+      }))
+    },
+    // Thème 3
+    theme3: { 
+      questions: byTheme('t3').map((q: any) => ({
+        question_id: q.question_id,
+        question: q.question,
+        reponse: q.reponse,
+        sort_order: q.sort_order,
+      }))
+    },
+    // Thème 4 (optionnel)
+    theme4: byTheme('t4').length > 0 ? { 
+      questions: byTheme('t4').map((q: any) => ({
+        question_id: q.question_id,
+        question: q.question,
+        reponse: q.reponse,
+        sort_order: q.sort_order,
+      })) 
+    } : undefined,
+  };
+}
+
+// ── GLOBAL STATS UNIFIED ─────────────────────────────────────────────────────
+async getGlobalStats() {
+  // Récupérer les totaux par table
+  const [apesCount] = await pool.query<any[]>(`SELECT COUNT(*) as total FROM form_data`);
+  const [guideCount] = await pool.query<any[]>(`SELECT COUNT(*) as total FROM guide_entretien`);
+  const [auditCount] = await pool.query<any[]>(`SELECT COUNT(*) as total FROM checklist_audit`);
+  const [conducteurCount] = await pool.query<any[]>(`SELECT COUNT(*) as total FROM checklist_conducteur`);
+
+  // Récupérer les stats par statut pour APES
+  const [apesStatus] = await pool.query<any[]>(`
+    SELECT status, COUNT(*) as count 
+    FROM form_data 
+    GROUP BY status
+  `);
+
+  // Récupérer les stats par type pour guides
+  const [guideType] = await pool.query<any[]>(`
+    SELECT guide_type as type, COUNT(*) as count 
+    FROM guide_entretien 
+    GROUP BY guide_type
+  `);
+
+  // Récupérer les 10 derniers formulaires créés (tous types)
+  const [recentForms] = await pool.query<any[]>(`
+    SELECT 
+      id, 
+      'apes' as type, 
+      status, 
+      created_at,
+      (SELECT project_name FROM project_info WHERE project_info.id = form_data.project_info_id) as name
+    FROM form_data
+    UNION ALL
+    SELECT id, 'guide-entretien' as type, 'draft' as status, created_at, subprojet as name
+    FROM guide_entretien
+    UNION ALL
+    SELECT id, 'checklist-audit' as type, 'draft' as status, created_at, subprojet as name
+    FROM checklist_audit
+    UNION ALL
+    SELECT id, 'checklist-conducteur' as type, 'draft' as status, created_at, subprojet as name
+    FROM checklist_conducteur
+    ORDER BY created_at DESC
+    LIMIT 10
+  `);
+
+  const totalGeneral = (apesCount[0]?.total || 0) + 
+                       (guideCount[0]?.total || 0) + 
+                       (auditCount[0]?.total || 0) + 
+                       (conducteurCount[0]?.total || 0);
+
+  return {
+    total: totalGeneral,
+    byType: {
+      apes: { total: apesCount[0]?.total || 0, stats: apesStatus[0] || [] },
+      guide: { total: guideCount[0]?.total || 0, stats: guideType[0] || [] },
+      checklistAudit: { total: auditCount[0]?.total || 0 },
+      checklistConducteur: { total: conducteurCount[0]?.total || 0 }
+    },
+    recent: recentForms[0] || [],
+    timestamp: new Date().toISOString()
+  };
+}
+
 
   private _buildAuditResponse(row: any, criteres: any[], documents: any[]) {
     const bySectionKey = (key: string) => criteres.filter(c => c.section_key === key);

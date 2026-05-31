@@ -16,100 +16,253 @@ const paginate = (req: Request) => {
   };
 };
 
-// ─── FORM (ancien FormData) ───────────────────────────────────
-
-export const createForm = async (req: Request, res: Response) => {
-  try {
-    const form = await formService.createForm(req.body);
-    res.status(201).json({ success: true, message: 'Formulaire créé avec succès', data: form });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la création du formulaire' });
+/**
+ * Détection automatique du type de formulaire
+ */
+const detectFormType = (body: any): 'apes' | 'checklist-audit' | 'checklist-conducteur' | 'guide-entretien' => {
+  // Guide Entretien
+  if (body.guide_type || body.gi_nom || body.theme1) {
+    return 'guide-entretien';
   }
+  // Checklist Audit
+  if (body.section1_cadreJuridique !== undefined || body.section2_infraSecurite || body.section6_bilanDocumentaire) {
+    return 'checklist-audit';
+  }
+  // Checklist Conducteur
+  if (body.section1_infoGenerales || body.section2_processusInitialT1 || body.auditeur) {
+    return 'checklist-conducteur';
+  }
+  // APES (par défaut)
+  if (body.projectInfo || body.project_name) {
+    return 'apes';
+  }
+  throw new Error('Impossible de détecter le type de formulaire. Vérifiez les champs envoyés.');
 };
 
-export const getForm = async (req: Request, res: Response) => {
+// ─── ROUTE UNIFIÉE ───────────────────────────────────────────
+
+/**
+ * POST /forms
+ * Crée n'importe quel type de formulaire automatiquement
+ */
+export const createAnyForm = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
-    if (!isValidId(id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const form = await formService.getFormById(id);
-    if (!form) return void res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    res.status(200).json({ success: true, data: form });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la récupération du formulaire' });
-  }
-};
+    const formType = detectFormType(req.body);
+    let result;
 
-export const getAllForms = async (req: Request, res: Response) => {
-  try {
-    const status      = typeof req.query.status      === 'string' ? req.query.status      : undefined;
-    const projectName = typeof req.query.projectName === 'string' ? req.query.projectName : undefined;
-    const dateFrom    = typeof req.query.dateFrom    === 'string' ? req.query.dateFrom    : undefined;
-    const dateTo      = typeof req.query.dateTo      === 'string' ? req.query.dateTo      : undefined;
+    switch (formType) {
+      case 'guide-entretien':
+        result = await formService.createGuideEntretien(req.body);
+        break;
+      case 'checklist-audit':
+        result = await formService.createChecklistAudit(req.body);
+        break;
+      case 'checklist-conducteur':
+        result = await formService.createChecklistConducteur(req.body);
+        break;
+      case 'apes':
+        result = await formService.createForm(req.body);
+        break;
+    }
 
-    const pageParam  = req.query.page;
-    const limitParam = req.query.limit;
-    const page  = typeof pageParam  === 'string' ? parseInt(pageParam,  10) : Array.isArray(pageParam)  ? parseInt(pageParam[0]  as string, 10) : 1;
-    const limit = typeof limitParam === 'string' ? parseInt(limitParam, 10) : Array.isArray(limitParam) ? parseInt(limitParam[0] as string, 10) : 10;
-
-    const filters: any = {};
-    if (status)      filters.status      = status;
-    if (projectName) filters.projectName = projectName;
-    if (dateFrom) { const d = new Date(dateFrom); if (!isNaN(d.getTime())) filters.dateFrom = d; }
-    if (dateTo)   { const d = new Date(dateTo);   if (!isNaN(d.getTime())) filters.dateTo   = d; }
-
-    const validatedPage  = isNaN(page)  || page  < 1 ? 1  : page;
-    const validatedLimit = isNaN(limit) || limit < 1 ? 10 : limit;
-
-    const result = await formService.getAllForms(filters, validatedPage, validatedLimit);
-    res.status(200).json({
+    res.status(201).json({
       success: true,
-      data: result.forms,
-      pagination: { page: result.page, limit: validatedLimit, total: result.total, totalPages: result.totalPages }
+      message: `${formType} créé avec succès`,
+      data: result,
+      type: formType
     });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la récupération des formulaires' });
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Erreur lors de la création du formulaire'
+    });
   }
 };
 
-export const updateForm = async (req: Request, res: Response) => {
+/**
+ * GET /forms/:id
+ * Récupère n'importe quel formulaire par son ID
+ */
+export const getAnyFormById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const updatedForm = await formService.updateForm(id, req.body);
-    if (!updatedForm) return void res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    res.status(200).json({ success: true, message: 'Formulaire mis à jour avec succès', data: updatedForm });
+    if (!isValidId(id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    // Essayer chaque type
+    let result = await formService.getGuideEntretienById(id);
+    if (result) {
+      return res.json({ success: true, type: 'guide-entretien', data: result });
+    }
+
+    result = await formService.getChecklistAuditById(id);
+    if (result) {
+      return res.json({ success: true, type: 'checklist-audit', data: result });
+    }
+
+    result = await formService.getChecklistConducteurById(id);
+    if (result) {
+      return res.json({ success: true, type: 'checklist-conducteur', data: result });
+    }
+
+    result = await formService.getFormById(id);
+    if (result) {
+      return res.json({ success: true, type: 'apes', data: result });
+    }
+
+    res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la mise à jour du formulaire' });
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la récupération du formulaire'
+    });
   }
 };
 
-export const deleteForm = async (req: Request, res: Response) => {
+/**
+ * PUT /forms/:id
+ * Met à jour n'importe quel formulaire
+ */
+export const updateAnyForm = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const deleted = await formService.deleteForm(id);
-    if (!deleted) return void res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    res.status(200).json({ success: true, message: 'Formulaire supprimé avec succès' });
+    if (!isValidId(id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    const formType = detectFormType(req.body);
+    let result;
+
+    switch (formType) {
+      case 'guide-entretien':
+        result = await formService.updateGuideEntretien(id, req.body);
+        break;
+      case 'checklist-audit':
+        result = await formService.updateChecklistAudit(id, req.body);
+        break;
+      case 'checklist-conducteur':
+        result = await formService.updateChecklistConducteur(id, req.body);
+        break;
+      case 'apes':
+        result = await formService.updateForm(id, req.body);
+        break;
+    }
+
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
+    }
+
+    res.json({
+      success: true,
+      message: `${formType} mis à jour avec succès`,
+      data: result,
+      type: formType
+    });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la suppression du formulaire' });
+    res.status(400).json({
+      success: false,
+      message: error.message || 'Erreur lors de la mise à jour du formulaire'
+    });
   }
 };
 
-export const submitForm = async (req: Request, res: Response) => {
+/**
+ * DELETE /forms/:id
+ * Supprime n'importe quel formulaire
+ */
+export const deleteAnyForm = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const submittedForm = await formService.submitForm(id);
-    if (!submittedForm) return void res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    res.status(200).json({ success: true, message: 'Formulaire soumis avec succès', data: submittedForm });
+    if (!isValidId(id)) {
+      return res.status(400).json({ success: false, message: 'ID invalide' });
+    }
+
+    // Essayer chaque type
+    let deleted = await formService.deleteGuideEntretien(id);
+    if (deleted) {
+      return res.json({ success: true, message: 'Guide entretien supprimé avec succès' });
+    }
+
+    deleted = await formService.deleteChecklistAudit(id);
+    if (deleted) {
+      return res.json({ success: true, message: 'Checklist audit supprimée avec succès' });
+    }
+
+    deleted = await formService.deleteChecklistConducteur(id);
+    if (deleted) {
+      return res.json({ success: true, message: 'Checklist conducteur supprimée avec succès' });
+    }
+
+    deleted = await formService.deleteForm(id);
+    if (deleted) {
+      return res.json({ success: true, message: 'Formulaire APES supprimé avec succès' });
+    }
+
+    res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message || 'Erreur lors de la soumission du formulaire' });
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la suppression du formulaire'
+    });
   }
 };
+
+/**
+ * GET /forms
+ * Liste tous les formulaires (tous types confondus)
+ */
+export const getAllFormsUnified = async (req: Request, res: Response) => {
+  try {
+    const { page, limit } = paginate(req);
+    const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+
+    // Récupérer tous les types
+    const [apesResult, auditResult, conducteurResult, guideResult] = await Promise.all([
+      formService.getAllForms({ status, projectName: search }, page, 100),
+      formService.getAllChecklistAudits({ subprojet: search }, page, 100),
+      formService.getAllChecklistConducteurs({ subprojet: search }, page, 100),
+      formService.getAllGuideEntretiens({ subprojet: search }, page, 100)
+    ]);
+
+    // Fusionner et trier
+    const allForms = [
+      ...apesResult.forms.map((f: any) => ({ ...f, formType: 'apes' })),
+      ...auditResult.items.map((f: any) => ({ ...f, formType: 'checklist-audit' })),
+      ...conducteurResult.items.map((f: any) => ({ ...f, formType: 'checklist-conducteur' })),
+      ...guideResult.items.map((f: any) => ({ ...f, formType: 'guide-entretien' }))
+    ];
+
+    // Trier par date de création
+    allForms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    // Pagination manuelle
+    const start = (page - 1) * limit;
+    const paginated = allForms.slice(start, start + limit);
+
+    res.json({
+      success: true,
+      data: paginated,
+      pagination: {
+        page,
+        limit,
+        total: allForms.length,
+        totalPages: Math.ceil(allForms.length / limit)
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la récupération des formulaires'
+    });
+  }
+};
+
 
 export const getStats = async (req: Request, res: Response) => {
   try {
-    const stats = await formService.getFormStats();
+    const stats = await formService.getGlobalStats();
     res.status(200).json({ 
       success: true, 
       data: stats,
@@ -124,170 +277,3 @@ export const getStats = async (req: Request, res: Response) => {
   }
 };
 
-// ─── GUIDE D'ENTRETIEN ───────────────────────────────────────
-
-export const createGuideEntretien = async (req: Request, res: Response) => {
-  try {
-    const data = await formService.createGuideEntretien(req.body);
-    res.status(201).json({ success: true, message: 'GuideEntretien créé avec succès', data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const getGuideEntretien = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const data = await formService.getGuideEntretienById(req.params.id);
-    if (!data) return void res.status(404).json({ success: false, message: 'GuideEntretien non trouvé' });
-    res.status(200).json({ success: true, data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const getAllGuideEntretiens = async (req: Request, res: Response) => {
-  try {
-    const { page, limit } = paginate(req);
-    const guideType = typeof req.query.guideType === 'string' ? req.query.guideType : undefined;
-    const subprojet = typeof req.query.subprojet === 'string' ? req.query.subprojet : undefined;
-    const result = await formService.getAllGuideEntretiens({ guideType, subprojet }, page, limit);
-    res.status(200).json({ success: true, data: result.items, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const updateGuideEntretien = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const data = await formService.updateGuideEntretien(req.params.id, req.body);
-    if (!data) return void res.status(404).json({ success: false, message: 'GuideEntretien non trouvé' });
-    res.status(200).json({ success: true, message: 'GuideEntretien mis à jour avec succès', data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const deleteGuideEntretien = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const deleted = await formService.deleteGuideEntretien(req.params.id);
-    if (!deleted) return void res.status(404).json({ success: false, message: 'GuideEntretien non trouvé' });
-    res.status(200).json({ success: true, message: 'GuideEntretien supprimé avec succès' });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-// ─── CHECKLIST AUDIT ─────────────────────────────────────────
-
-export const createChecklistAudit = async (req: Request, res: Response) => {
-  try {
-    const data = await formService.createChecklistAudit(req.body);
-    res.status(201).json({ success: true, message: 'ChecklistAudit créée avec succès', data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const getChecklistAudit = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const data = await formService.getChecklistAuditById(req.params.id);
-    if (!data) return void res.status(404).json({ success: false, message: 'ChecklistAudit non trouvée' });
-    res.status(200).json({ success: true, data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const getAllChecklistAudits = async (req: Request, res: Response) => {
-  try {
-    const { page, limit } = paginate(req);
-    const subprojet = typeof req.query.subprojet === 'string' ? req.query.subprojet : undefined;
-    const auditeurs = typeof req.query.auditeurs === 'string' ? req.query.auditeurs : undefined;
-    const result = await formService.getAllChecklistAudits({ subprojet, auditeurs }, page, limit);
-    res.status(200).json({ success: true, data: result.items, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const updateChecklistAudit = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const data = await formService.updateChecklistAudit(req.params.id, req.body);
-    if (!data) return void res.status(404).json({ success: false, message: 'ChecklistAudit non trouvée' });
-    res.status(200).json({ success: true, message: 'ChecklistAudit mise à jour avec succès', data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const deleteChecklistAudit = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const deleted = await formService.deleteChecklistAudit(req.params.id);
-    if (!deleted) return void res.status(404).json({ success: false, message: 'ChecklistAudit non trouvée' });
-    res.status(200).json({ success: true, message: 'ChecklistAudit supprimée avec succès' });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-// ─── CHECKLIST CONDUCTEUR TRAVAUX ────────────────────────────
-
-export const createChecklistConducteur = async (req: Request, res: Response) => {
-  try {
-    const data = await formService.createChecklistConducteur(req.body);
-    res.status(201).json({ success: true, message: 'ChecklistConducteur créée avec succès', data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const getChecklistConducteur = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const data = await formService.getChecklistConducteurById(req.params.id);
-    if (!data) return void res.status(404).json({ success: false, message: 'ChecklistConducteur non trouvée' });
-    res.status(200).json({ success: true, data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const getAllChecklistConducteurs = async (req: Request, res: Response) => {
-  try {
-    const { page, limit } = paginate(req);
-    const subprojet = typeof req.query.subprojet === 'string' ? req.query.subprojet : undefined;
-    const entreprise = typeof req.query.entreprise === 'string' ? req.query.entreprise : undefined;
-    const result = await formService.getAllChecklistConducteurs({ subprojet, entreprise }, page, limit);
-    res.status(200).json({ success: true, data: result.items, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const updateChecklistConducteur = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const data = await formService.updateChecklistConducteur(req.params.id, req.body);
-    if (!data) return void res.status(404).json({ success: false, message: 'ChecklistConducteur non trouvée' });
-    res.status(200).json({ success: true, message: 'ChecklistConducteur mise à jour avec succès', data });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};
-
-export const deleteChecklistConducteur = async (req: Request, res: Response) => {
-  try {
-    if (!isValidId(req.params.id)) return void res.status(400).json({ success: false, message: 'ID invalide' });
-    const deleted = await formService.deleteChecklistConducteur(req.params.id);
-    if (!deleted) return void res.status(404).json({ success: false, message: 'ChecklistConducteur non trouvée' });
-    res.status(200).json({ success: true, message: 'ChecklistConducteur supprimée avec succès' });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-};

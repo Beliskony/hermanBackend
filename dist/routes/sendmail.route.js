@@ -26,8 +26,8 @@ SendContactMailrouter.post('/contactMail', (req, res) => __awaiter(void 0, void 
     }
     try {
         yield Promise.all([
-            sendmail_service_1.default.sendContactConfirmation(form),
             sendmail_service_1.default.sendContactNotificationToAdmin(form),
+            sendmail_service_1.default.sendContactConfirmation(form)
         ]);
         return res.status(200).json({
             success: true,
