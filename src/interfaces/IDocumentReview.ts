@@ -1,18 +1,20 @@
 // src/interfaces/IDocumentReview.ts
 export interface IDocumentReview {
   id: string;                       // CHAR(16)
-  form_id: string;                  // CHAR(16) FK → form_data.id
-  documents_presents: Record<string, boolean>;     // JSON
-  documents_analysis: Record<string, {              // JSON
+  project_id: string;               // CHAR(16) FK → projects.id
+  documents_presents: Record<string, boolean>;
+  documents_analysis: Record<string, {
     findings: string;
     rating: 'conforme' | 'partiel' | 'non-conforme' | 'n/a';
   }>;
   documents_manquants: string | null;
   autres_documents: string | null;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface ICreateDocumentReview {
-  form_id: string;
+  project_id: string;
   documents_presents: Record<string, boolean>;
   documents_analysis: Record<string, any>;
   documents_manquants?: string;

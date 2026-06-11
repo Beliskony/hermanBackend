@@ -9,260 +9,448 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getStats = exports.getAllFormsUnified = exports.deleteAnyForm = exports.updateAnyForm = exports.getAnyFormById = exports.createAnyForm = void 0;
+exports.formController = exports.FormController = void 0;
 const form_service_1 = require("../services/form.service");
 const formService = new form_service_1.FormService();
-// ─── HELPERS ─────────────────────────────────────────────────
-const isValidId = (id) => !Array.isArray(id);
+// =============================================================================
+// HELPERS
+// =============================================================================
+const isValidId = (id) => {
+    return typeof id === 'string' && id.length === 16 && /^[a-f0-9]{16}$/i.test(id);
+};
 const paginate = (req) => {
     const page = parseInt(req.query.page, 10);
     const limit = parseInt(req.query.limit, 10);
     return {
         page: isNaN(page) || page < 1 ? 1 : page,
-        limit: isNaN(limit) || limit < 1 ? 10 : limit
+        limit: isNaN(limit) || limit < 1 ? 10 : Math.min(limit, 100)
     };
 };
-/**
- * Détection automatique du type de formulaire
- */
-const detectFormType = (body) => {
-    // Guide Entretien
-    if (body.guide_type || body.gi_nom || body.theme1) {
-        return 'guide-entretien';
-    }
-    // Checklist Audit
-    if (body.section1_cadreJuridique !== undefined || body.section2_infraSecurite || body.section6_bilanDocumentaire) {
-        return 'checklist-audit';
-    }
-    // Checklist Conducteur
-    if (body.section1_infoGenerales || body.section2_processusInitialT1 || body.auditeur) {
-        return 'checklist-conducteur';
-    }
-    // APES (par défaut)
-    if (body.projectInfo || body.project_name) {
-        return 'apes';
-    }
-    throw new Error('Impossible de détecter le type de formulaire. Vérifiez les champs envoyés.');
-};
-// ─── ROUTE UNIFIÉE ───────────────────────────────────────────
-/**
- * POST /forms
- * Crée n'importe quel type de formulaire automatiquement
- */
-const createAnyForm = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const formType = detectFormType(req.body);
-        let result;
-        switch (formType) {
-            case 'guide-entretien':
-                result = yield formService.createGuideEntretien(req.body);
-                break;
-            case 'checklist-audit':
-                result = yield formService.createChecklistAudit(req.body);
-                break;
-            case 'checklist-conducteur':
-                result = yield formService.createChecklistConducteur(req.body);
-                break;
-            case 'apes':
-                result = yield formService.createForm(req.body);
-                break;
-        }
-        res.status(201).json({
-            success: true,
-            message: `${formType} créé avec succès`,
-            data: result,
-            type: formType
-        });
-    }
-    catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error.message || 'Erreur lors de la création du formulaire'
-        });
-    }
-});
-exports.createAnyForm = createAnyForm;
-/**
- * GET /forms/:id
- * Récupère n'importe quel formulaire par son ID
- */
-const getAnyFormById = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { id } = req.params;
-        if (!isValidId(id)) {
-            return res.status(400).json({ success: false, message: 'ID invalide' });
-        }
-        // Essayer chaque type
-        let result = yield formService.getGuideEntretienById(id);
-        if (result) {
-            return res.json({ success: true, type: 'guide-entretien', data: result });
-        }
-        result = yield formService.getChecklistAuditById(id);
-        if (result) {
-            return res.json({ success: true, type: 'checklist-audit', data: result });
-        }
-        result = yield formService.getChecklistConducteurById(id);
-        if (result) {
-            return res.json({ success: true, type: 'checklist-conducteur', data: result });
-        }
-        result = yield formService.getFormById(id);
-        if (result) {
-            return res.json({ success: true, type: 'apes', data: result });
-        }
-        res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    }
-    catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Erreur lors de la récupération du formulaire'
-        });
-    }
-});
-exports.getAnyFormById = getAnyFormById;
-/**
- * PUT /forms/:id
- * Met à jour n'importe quel formulaire
- */
-const updateAnyForm = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { id } = req.params;
-        if (!isValidId(id)) {
-            return res.status(400).json({ success: false, message: 'ID invalide' });
-        }
-        const formType = detectFormType(req.body);
-        let result;
-        switch (formType) {
-            case 'guide-entretien':
-                result = yield formService.updateGuideEntretien(id, req.body);
-                break;
-            case 'checklist-audit':
-                result = yield formService.updateChecklistAudit(id, req.body);
-                break;
-            case 'checklist-conducteur':
-                result = yield formService.updateChecklistConducteur(id, req.body);
-                break;
-            case 'apes':
-                result = yield formService.updateForm(id, req.body);
-                break;
-        }
-        if (!result) {
-            return res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-        }
-        res.json({
-            success: true,
-            message: `${formType} mis à jour avec succès`,
-            data: result,
-            type: formType
-        });
-    }
-    catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error.message || 'Erreur lors de la mise à jour du formulaire'
-        });
-    }
-});
-exports.updateAnyForm = updateAnyForm;
-/**
- * DELETE /forms/:id
- * Supprime n'importe quel formulaire
- */
-const deleteAnyForm = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { id } = req.params;
-        if (!isValidId(id)) {
-            return res.status(400).json({ success: false, message: 'ID invalide' });
-        }
-        // Essayer chaque type
-        let deleted = yield formService.deleteGuideEntretien(id);
-        if (deleted) {
-            return res.json({ success: true, message: 'Guide entretien supprimé avec succès' });
-        }
-        deleted = yield formService.deleteChecklistAudit(id);
-        if (deleted) {
-            return res.json({ success: true, message: 'Checklist audit supprimée avec succès' });
-        }
-        deleted = yield formService.deleteChecklistConducteur(id);
-        if (deleted) {
-            return res.json({ success: true, message: 'Checklist conducteur supprimée avec succès' });
-        }
-        deleted = yield formService.deleteForm(id);
-        if (deleted) {
-            return res.json({ success: true, message: 'Formulaire APES supprimé avec succès' });
-        }
-        res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    }
-    catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Erreur lors de la suppression du formulaire'
-        });
-    }
-});
-exports.deleteAnyForm = deleteAnyForm;
-/**
- * GET /forms
- * Liste tous les formulaires (tous types confondus)
- */
-const getAllFormsUnified = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { page, limit } = paginate(req);
-        const status = typeof req.query.status === 'string' ? req.query.status : undefined;
-        const search = typeof req.query.search === 'string' ? req.query.search : undefined;
-        // Récupérer tous les types
-        const [apesResult, auditResult, conducteurResult, guideResult] = yield Promise.all([
-            formService.getAllForms({ status, projectName: search }, page, 100),
-            formService.getAllChecklistAudits({ subprojet: search }, page, 100),
-            formService.getAllChecklistConducteurs({ subprojet: search }, page, 100),
-            formService.getAllGuideEntretiens({ subprojet: search }, page, 100)
-        ]);
-        // Fusionner et trier
-        const allForms = [
-            ...apesResult.forms.map((f) => (Object.assign(Object.assign({}, f), { formType: 'apes' }))),
-            ...auditResult.items.map((f) => (Object.assign(Object.assign({}, f), { formType: 'checklist-audit' }))),
-            ...conducteurResult.items.map((f) => (Object.assign(Object.assign({}, f), { formType: 'checklist-conducteur' }))),
-            ...guideResult.items.map((f) => (Object.assign(Object.assign({}, f), { formType: 'guide-entretien' })))
-        ];
-        // Trier par date de création
-        allForms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        // Pagination manuelle
-        const start = (page - 1) * limit;
-        const paginated = allForms.slice(start, start + limit);
-        res.json({
-            success: true,
-            data: paginated,
-            pagination: {
-                page,
-                limit,
-                total: allForms.length,
-                totalPages: Math.ceil(allForms.length / limit)
+// =============================================================================
+// FORM CONTROLLER
+// =============================================================================
+class FormController {
+    // ===========================================================================
+    // PROJETS
+    // ===========================================================================
+    getAllProjects(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { page, limit } = paginate(req);
+                const result = yield formService.projects.getAll(page, limit);
+                res.json({ success: true, data: result.items, pagination: { page: result.page, limit, total: result.total, totalPages: result.totalPages } });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
             }
         });
     }
-    catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Erreur lors de la récupération des formulaires'
+    getProjectById(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const project = yield formService.projects.getById(id);
+                if (!project)
+                    return res.status(404).json({ success: false, message: 'Projet non trouvé' });
+                res.json({ success: true, data: project });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
         });
     }
-});
-exports.getAllFormsUnified = getAllFormsUnified;
-const getStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const stats = yield formService.getGlobalStats();
-        res.status(200).json({
-            success: true,
-            data: stats,
-            timestamp: new Date().toISOString()
+    // ===========================================================================
+    // QUESTIONS (charge les questions selon le type de formulaire)
+    // ===========================================================================
+    getFormQuestions(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { projectId, formType } = req.params;
+                if (!isValidId(projectId))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const questions = yield formService.questions.getFormQuestions(projectId, formType);
+                res.json({ success: true, data: questions });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
         });
     }
-    catch (error) {
-        console.error('Erreur getStats:', error);
-        res.status(500).json({
-            success: false,
-            message: error.message || 'Erreur lors de la récupération des statistiques'
+    // ===========================================================================
+    // APES FORM
+    // ===========================================================================
+    createAPES(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const result = yield formService.apes.create(req.body);
+                res.status(201).json({ success: true, type: 'apes', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
         });
     }
-});
-exports.getStats = getStats;
+    getAPES(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const apes = yield formService.apes.getById(id);
+                if (!apes)
+                    return res.status(404).json({ success: false, message: 'Formulaire APES non trouvé' });
+                res.json({ success: true, type: 'apes', data: apes });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+    updateAPES(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                // Pour la mise à jour, on utilise saveDocumentReview, saveFieldInspection, etc.
+                // ou on implémente une méthode update dans le service
+                res.json({ success: true, message: 'Mise à jour APES à implémenter' });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    submitAPES(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const result = yield formService.apes.submit(id);
+                res.json({ success: true, type: 'apes', message: 'Formulaire APES soumis avec succès', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    // ===========================================================================
+    // GUIDE ENTRETIEN
+    // ===========================================================================
+    createGuideEntretien(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const result = yield formService.guideEntretien.create(req.body);
+                res.status(201).json({ success: true, type: 'guide_entretien', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    getGuideEntretien(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const guide = yield formService.guideEntretien.getById(id);
+                if (!guide)
+                    return res.status(404).json({ success: false, message: 'Guide non trouvé' });
+                res.json({ success: true, type: 'guide_entretien', data: guide });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+    updateGuideEntretien(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const result = yield formService.guideEntretien.update(id, req.body);
+                res.json({ success: true, type: 'guide_entretien', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    submitGuideEntretien(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                // Implémenter la soumission si nécessaire
+                res.json({ success: true, type: 'guide_entretien', message: 'Guide soumis avec succès' });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    // ===========================================================================
+    // DATA COLLECTION
+    // ===========================================================================
+    createDataCollection(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const result = yield formService.dataCollection.create(req.body);
+                res.status(201).json({ success: true, type: 'data_collection', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    getDataCollection(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const data = yield formService.dataCollection.getById(id);
+                if (!data)
+                    return res.status(404).json({ success: false, message: 'Formulaire Data Collection non trouvé' });
+                res.json({ success: true, type: 'data_collection', data });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+    updateDataCollection(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const result = yield formService.dataCollection.update(id, req.body);
+                res.json({ success: true, type: 'data_collection', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    submitDataCollection(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const result = yield formService.dataCollection.submit(id);
+                res.json({ success: true, type: 'data_collection', message: 'Formulaire Data Collection soumis avec succès', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    // ===========================================================================
+    // CHECKLIST AUDIT
+    // ===========================================================================
+    createChecklistAudit(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const result = yield formService.checklistAudit.create(req.body);
+                res.status(201).json({ success: true, type: 'checklist_audit', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    getChecklistAudit(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const audit = yield formService.checklistAudit.getById(id);
+                if (!audit)
+                    return res.status(404).json({ success: false, message: 'Audit non trouvé' });
+                res.json({ success: true, type: 'checklist_audit', data: audit });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+    updateChecklistAudit(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const result = yield formService.checklistAudit.update(id, req.body);
+                res.json({ success: true, type: 'checklist_audit', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    submitChecklistAudit(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                res.json({ success: true, type: 'checklist_audit', message: 'Audit soumis avec succès' });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    // ===========================================================================
+    // CHECKLIST CONDUCTEUR
+    // ===========================================================================
+    createChecklistConducteur(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const result = yield formService.checklistConducteur.create(req.body);
+                res.status(201).json({ success: true, type: 'checklist_conducteur', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    getChecklistConducteur(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const conducteur = yield formService.checklistConducteur.getById(id);
+                if (!conducteur)
+                    return res.status(404).json({ success: false, message: 'Checklist non trouvée' });
+                res.json({ success: true, type: 'checklist_conducteur', data: conducteur });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+    updateChecklistConducteur(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const result = yield formService.checklistConducteur.update(id, req.body);
+                res.json({ success: true, type: 'checklist_conducteur', data: result });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    submitChecklistConducteur(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                res.json({ success: true, type: 'checklist_conducteur', message: 'Checklist soumise avec succès' });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    // ===========================================================================
+    // FORMULAIRE UNIQUE (GET)
+    // ===========================================================================
+    getForm(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                // Essayer chaque type
+                const guide = yield formService.guideEntretien.getById(id);
+                if (guide)
+                    return res.json({ success: true, type: 'guide_entretien', data: guide });
+                const audit = yield formService.checklistAudit.getById(id);
+                if (audit)
+                    return res.json({ success: true, type: 'checklist_audit', data: audit });
+                const conducteur = yield formService.checklistConducteur.getById(id);
+                if (conducteur)
+                    return res.json({ success: true, type: 'checklist_conducteur', data: conducteur });
+                const apes = yield formService.apes.getById(id);
+                if (apes)
+                    return res.json({ success: true, type: 'apes', data: apes });
+                // Data Collection ← AJOUTER
+                const dataCollection = yield formService.dataCollection.getById(id);
+                if (dataCollection)
+                    return res.json({ success: true, type: 'data_collection', data: dataCollection });
+                res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+    submitForm(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { id } = req.params;
+                if (!isValidId(id))
+                    return res.status(400).json({ success: false, message: 'ID invalide' });
+                const apesResult = yield formService.apes.submit(id);
+                if (apesResult) {
+                    return res.json({ success: true, type: 'apes', message: 'Formulaire soumis avec succès', data: apesResult });
+                }
+                res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
+            }
+            catch (error) {
+                res.status(400).json({ success: false, message: error.message });
+            }
+        });
+    }
+    getAllForms(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { page, limit } = paginate(req);
+                const projectId = req.query.projectId;
+                const [apes, guides, audits, conducteurs, dataCollections] = yield Promise.all([
+                    formService.apes.getAll(projectId, undefined, page, 100),
+                    formService.guideEntretien.getAll(projectId, undefined, page, 100),
+                    formService.checklistAudit.getAll(projectId, page, 100),
+                    formService.checklistConducteur.getAll(projectId, page, 100),
+                    formService.dataCollection.getAll(projectId, undefined, page, 100)
+                ]);
+                const allForms = [
+                    ...(apes.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'apes' }))),
+                    ...(guides.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'guide_entretien' }))),
+                    ...(audits.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'checklist_audit' }))),
+                    ...(conducteurs.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'checklist_conducteur' }))),
+                    ...(dataCollections.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'data_collection' })))
+                ];
+                allForms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const start = (page - 1) * limit;
+                const paginated = allForms.slice(start, start + limit);
+                res.json({
+                    success: true,
+                    data: paginated,
+                    pagination: { page, limit, total: allForms.length, totalPages: Math.ceil(allForms.length / limit) }
+                });
+            }
+            catch (error) {
+                res.status(500).json({ success: false, message: error.message });
+            }
+        });
+    }
+}
+exports.FormController = FormController;
+exports.formController = new FormController();
 //# sourceMappingURL=form.controller.js.map

@@ -1,34 +1,38 @@
 import { Request, Response } from 'express';
-import { 
-  generateFormDataWordDocument,
-  exportChecklistAuditWord,
-  exportChecklistConducteurWord,
-  exportGuideEntretienWord
-} from '../services/words.service';
+import {
+  exportAPESWord,
+  exportGuideWord,
+  exportAuditWord,
+  exportConducteurWord,
+  exportDataCollectionWord
+} from '../services/word/words.service';
 import { FormService } from '../services/form.service';
 
 const formService = new FormService();
 
-// Helper pour extraire un ID valide
 const getValidId = (param: string | string[] | undefined): string | null => {
   if (!param) return null;
   const id = Array.isArray(param) ? param[0] : param;
   return id && /^[a-zA-Z0-9_-]{16}$/.test(id) ? id : null;
 };
 
-// Helper pour générer le nom du fichier
 const generateFilename = (type: string, name: string): string => {
   const safeName = String(name).replace(/\s+/g, '_').substring(0, 50);
   return `${type}-${safeName}.docx`;
 };
 
+const extractMeta = (data: any): { projectName: string; projectLocation: string; auditors: string } => ({
+  projectName:     data.project_name     || data.subprojet  || data.gi_nom   || 'Projet',
+  projectLocation: data.project_location || data.lieu       || '—',
+  auditors:        data.auditors         || data.auditeurs  || data.auditeur || data.gi_nom || '—',
+});
+
 export class WordExportController {
 
+
   /**
-   * Route UNIQUE pour exporter n'importe quel formulaire
    * GET /words/export/:id
-   * 
-   * Détecte automatiquement le type de formulaire et génère le Word correspondant
+   * Détecte le type de formulaire et génère le Word correspondant
    */
   async exportAnyFormToWord(req: Request, res: Response): Promise<void> {
     try {
@@ -38,65 +42,72 @@ export class WordExportController {
         return;
       }
 
-      // Détection du type de formulaire
-      let type: 'apes' | 'checklist-audit' | 'checklist-conducteur' | 'guide-entretien' | null = null;
+      type FormType = 'apes' | 'checklist-audit' | 'checklist-conducteur' | 'guide-entretien' | 'data-collection';
+      let formType: FormType | null = null;
       let data: any = null;
 
-      // 1. Essayer Guide Entretien
-      data = await formService.getGuideEntretienById(id);
-      if (data) type = 'guide-entretien';
+      // 1. Guide entretien
+      data = await formService.guideEntretien.getById(id);
+      if (data) formType = 'guide-entretien';
 
-      // 2. Essayer Checklist Audit
+      // 2. Checklist audit
       if (!data) {
-        data = await formService.getChecklistAuditById(id);
-        if (data) type = 'checklist-audit';
+        data = await formService.checklistAudit.getById(id);
+        if (data) formType = 'checklist-audit';
       }
 
-      // 3. Essayer Checklist Conducteur
+      // 3. Checklist conducteur
       if (!data) {
-        data = await formService.getChecklistConducteurById(id);
-        if (data) type = 'checklist-conducteur';
+        data = await formService.checklistConducteur.getById(id);
+        if (data) formType = 'checklist-conducteur';
       }
 
-      // 4. Essayer APES Form
+      // 4. APES
       if (!data) {
-        data = await formService.getFormById(id);
-        if (data) type = 'apes';
+        data = await formService.apes.getById(id);
+        if (data) formType = 'apes';
       }
 
-      if (!data || !type) {
+      // 5. Data Collection
+      if (!data) {
+        data = await formService.dataCollection.getById(id);
+        if (data) formType = 'data-collection';
+      }
+
+      if (!data || !formType) {
         res.status(404).json({ message: 'Formulaire non trouvé' });
         return;
       }
 
-      // Génération du document Word selon le type
+      const { projectName, projectLocation, auditors } = extractMeta(data);
       let buffer: Buffer;
       let filename: string;
 
-      switch (type) {
+      switch (formType) {
         case 'guide-entretien':
-          buffer = await exportGuideEntretienWord(data);
+          buffer = await exportGuideWord(data, projectName, projectLocation, auditors);
           filename = generateFilename(`guide-${data.guide_type || 'entretien'}`, data.subprojet || data.gi_nom || 'guide');
           break;
 
         case 'checklist-audit':
-          buffer = await exportChecklistAuditWord(data);
+          buffer = await exportAuditWord(data, projectName, projectLocation, auditors);
           filename = generateFilename('checklist-audit', data.subprojet || 'audit');
           break;
 
         case 'checklist-conducteur':
-          buffer = await exportChecklistConducteurWord(data);
+          buffer = await exportConducteurWord(data, projectName, projectLocation, auditors);
           filename = generateFilename('checklist-conducteur', data.subprojet || 'conducteur');
           break;
 
         case 'apes':
-          buffer = await generateFormDataWordDocument(data);
-          filename = generateFilename('apes', data.project_name || 'projet');
+          buffer = await exportAPESWord(data, projectName, projectLocation, auditors);
+          filename = generateFilename('apes', projectName);
           break;
 
-        default:
-          res.status(400).json({ message: 'Type de formulaire non supporté' });
-          return;
+        case 'data-collection':
+          buffer = await exportDataCollectionWord(data, projectName, projectLocation, auditors);
+          filename = generateFilename('data-collection', data.subprojet || 'data-collection');
+          break;
       }
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
@@ -105,9 +116,9 @@ export class WordExportController {
 
     } catch (error) {
       console.error('[WordExport] Erreur:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: 'Erreur lors de la génération du document Word',
-        error: error instanceof Error ? error.message : 'Erreur inconnue'
+        error: error instanceof Error ? error.message : 'Erreur inconnue',
       });
     }
   }

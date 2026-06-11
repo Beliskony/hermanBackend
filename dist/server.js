@@ -21,6 +21,8 @@ const poll_route_1 = __importDefault(require("./routes/poll.route"));
 const form_route_1 = __importDefault(require("./routes/form.route"));
 const sendmail_route_1 = __importDefault(require("./routes/sendmail.route"));
 const words_route_1 = __importDefault(require("./routes/words.route"));
+const admin_route_1 = __importDefault(require("./routes/admin.route"));
+const ShareLink_route_1 = __importDefault(require("./routes/ShareLink.route"));
 dotenv_1.default.config();
 const app = (0, express_1.default)();
 // ✅ 1. CORS
@@ -73,6 +75,8 @@ app.use(poll_route_1.default);
 app.use(form_route_1.default);
 app.use(words_route_1.default);
 app.use(sendmail_route_1.default);
+app.use(admin_route_1.default);
+app.use(ShareLink_route_1.default);
 // ✅ 6. 404 handler
 app.use((req, res) => {
     res.status(404).json({

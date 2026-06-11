@@ -9,712 +9,928 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateFormDataWordDocument = generateFormDataWordDocument;
-exports.exportChecklistAuditWord = exportChecklistAuditWord;
-exports.exportChecklistConducteurWord = exportChecklistConducteurWord;
-exports.exportGuideEntretienWord = exportGuideEntretienWord;
+exports.exportAPESWord = exportAPESWord;
+exports.exportGuideWord = exportGuideWord;
+exports.exportAuditWord = exportAuditWord;
+exports.exportConducteurWord = exportConducteurWord;
+exports.exportAllFormsWord = exportAllFormsWord;
 const docx_1 = require("docx");
-// ─── Palette & constantes ────────────────────────────────────
+// =============================================================================
+//  CONSTANTES ET STYLES
+// =============================================================================
 const C = {
-    primary: '1B3A5C', secondary: '2E75B6', accent: '00B0A0',
-    headerBg: '1B3A5C', headerText: 'FFFFFF', subBg: 'D6E4F0',
-    altRow: 'F0F6FB', white: 'FFFFFF', lightGray: 'F5F5F5',
-    borderCol: 'B8CCE4', muted: '6B7A8D', text: '1A1A2E',
-    green: '1A7A4A', red: 'C0392B', yellow: 'C07000',
+    primary: '1B3A5C',
+    secondary: '2E75B6',
+    accent: '00B0A0',
+    headerBg: '1B3A5C',
+    headerText: 'FFFFFF',
+    subBg: 'D6E4F0',
+    altRow: 'F0F6FB',
+    white: 'FFFFFF',
+    lightGray: 'F5F5F5',
+    borderCol: 'B8CCE4',
+    muted: '6B7A8D',
+    text: '1A1A2E',
+    green: '1A7A4A',
+    red: 'C0392B',
+    yellow: 'C07000',
+    orange: 'E67E22',
 };
-const PAGE = { width: 11906, height: 16838, margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } };
+const PAGE = {
+    width: 11906,
+    height: 16838,
+    margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 },
+};
 const TW = 9638;
 const BORDER = (color = C.borderCol) => ({ style: docx_1.BorderStyle.SINGLE, size: 4, color });
-const NO_BORDER = { style: docx_1.BorderStyle.NONE, size: 0, color: 'FFFFFF' };
 const CELL_MARGINS = { top: 100, bottom: 100, left: 140, right: 140 };
-// ─── Helpers génériques ──────────────────────────────────────
-function hCell(text, width, center = false) {
-    return new docx_1.TableCell({
-        width: { size: width, type: docx_1.WidthType.DXA },
-        shading: { fill: C.headerBg, type: docx_1.ShadingType.CLEAR },
-        margins: CELL_MARGINS,
-        borders: { top: BORDER('FFFFFF'), bottom: BORDER('FFFFFF'), left: BORDER('FFFFFF'), right: BORDER('334E6E') },
-        children: [new docx_1.Paragraph({ alignment: center ? docx_1.AlignmentType.CENTER : docx_1.AlignmentType.LEFT, children: [new docx_1.TextRun({ text, bold: true, color: C.headerText, size: 18, font: 'Calibri' })] })],
+// =============================================================================
+//  HELPERS D'ÉCRITURE
+// =============================================================================
+function mainTitle(projectName) {
+    return new docx_1.Paragraph({
+        alignment: docx_1.AlignmentType.CENTER,
+        spacing: { before: 2000, after: 120 },
+        children: [new docx_1.TextRun({ text: `RAPPORT ${projectName.toUpperCase()}`, bold: true, size: 48, color: C.primary, font: 'Calibri' })],
     });
 }
-function dCell(text, width, opts = {}) {
-    const { shade = false, center = false, bold = false, color = C.text } = opts;
-    return new docx_1.TableCell({
-        width: { size: width, type: docx_1.WidthType.DXA },
-        shading: { fill: shade ? C.altRow : C.white, type: docx_1.ShadingType.CLEAR },
-        margins: CELL_MARGINS,
-        borders: { top: BORDER(), bottom: BORDER(), left: BORDER(), right: BORDER() },
-        children: [new docx_1.Paragraph({ alignment: center ? docx_1.AlignmentType.CENTER : docx_1.AlignmentType.LEFT, children: [new docx_1.TextRun({ text: String(text !== null && text !== void 0 ? text : '—'), bold, color, size: 18, font: 'Calibri' })] })],
+function sectionTitle(text, num) {
+    const children = [];
+    if (num) {
+        children.push(new docx_1.TextRun({ text: `${num}  `, bold: true, size: 32, color: C.accent, font: 'Calibri' }));
+    }
+    children.push(new docx_1.TextRun({ text, bold: true, size: 32, color: C.primary, font: 'Calibri' }));
+    return new docx_1.Paragraph({
+        heading: docx_1.HeadingLevel.HEADING_1,
+        spacing: { before: 480, after: 120 },
+        children,
+    });
+}
+function subTitle(text) {
+    return new docx_1.Paragraph({
+        heading: docx_1.HeadingLevel.HEADING_2,
+        spacing: { before: 280, after: 80 },
+        children: [
+            new docx_1.TextRun({ text, bold: true, size: 24, color: C.secondary, font: 'Calibri', underline: { type: docx_1.UnderlineType.SINGLE, color: C.secondary } }),
+        ],
+    });
+}
+function paragraph(text, options) {
+    var _a, _b, _c, _d;
+    return new docx_1.Paragraph({
+        spacing: { after: (_a = options === null || options === void 0 ? void 0 : options.spacing) !== null && _a !== void 0 ? _a : 120 },
+        children: [
+            new docx_1.TextRun({
+                text,
+                bold: (_b = options === null || options === void 0 ? void 0 : options.bold) !== null && _b !== void 0 ? _b : false,
+                italics: (_c = options === null || options === void 0 ? void 0 : options.italic) !== null && _c !== void 0 ? _c : false,
+                color: (_d = options === null || options === void 0 ? void 0 : options.color) !== null && _d !== void 0 ? _d : C.text,
+                size: 20,
+                font: 'Calibri',
+            }),
+        ],
+    });
+}
+function bulletPoint(text) {
+    return new docx_1.Paragraph({
+        numbering: { reference: 'bullet-list', level: 0 },
+        spacing: { after: 60 },
+        children: [new docx_1.TextRun({ text, size: 20, font: 'Calibri', color: C.text })],
+    });
+}
+function kvParagraph(label, value) {
+    return new docx_1.Paragraph({
+        spacing: { after: 80 },
+        children: [
+            new docx_1.TextRun({ text: `${label} : `, bold: true, size: 20, color: C.primary, font: 'Calibri' }),
+            new docx_1.TextRun({ text: value || '—', size: 20, color: C.text, font: 'Calibri' }),
+        ],
     });
 }
 function divider() {
-    return new docx_1.Paragraph({ border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 1 } }, spacing: { after: 160 }, children: [] });
+    return new docx_1.Paragraph({
+        border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.accent, space: 1 } },
+        spacing: { after: 160 },
+        children: [],
+    });
 }
-function sectionTitle(num, text) {
-    return [
-        new docx_1.Paragraph({ heading: docx_1.HeadingLevel.HEADING_1, spacing: { before: 480, after: 60 }, children: [new docx_1.TextRun({ text: num + '  ', bold: true, size: 30, color: C.accent, font: 'Calibri' }), new docx_1.TextRun({ text, bold: true, size: 30, color: C.primary, font: 'Calibri' })] }),
-        divider(),
-    ];
+function pageBreak() {
+    return new docx_1.Paragraph({ children: [new docx_1.PageBreak()] });
 }
-function subTitle(text) {
-    return [new docx_1.Paragraph({ heading: docx_1.HeadingLevel.HEADING_2, spacing: { before: 280, after: 80 }, children: [new docx_1.TextRun({ text, bold: true, size: 22, color: C.secondary, font: 'Calibri', underline: { type: docx_1.UnderlineType.SINGLE, color: C.secondary } })] })];
+function spacer(after = 120) {
+    return new docx_1.Paragraph({ spacing: { after }, children: [] });
 }
-function kvParagraph(label, value) {
-    return new docx_1.Paragraph({ spacing: { after: 80 }, children: [new docx_1.TextRun({ text: `${label} : `, bold: true, size: 20, color: C.primary, font: 'Calibri' }), new docx_1.TextRun({ text: value || '—', size: 20, color: C.text, font: 'Calibri' })] });
+function tableCell(text, width, options = {}) {
+    var _a, _b;
+    const textColor = options.header ? C.headerText : (options.color || C.text);
+    return new docx_1.TableCell({
+        width: { size: width, type: docx_1.WidthType.DXA },
+        shading: options.header
+            ? { fill: C.headerBg, type: docx_1.ShadingType.CLEAR }
+            : { fill: options.shade ? C.altRow : C.white, type: docx_1.ShadingType.CLEAR },
+        margins: CELL_MARGINS,
+        borders: {
+            top: BORDER(),
+            bottom: BORDER(),
+            left: BORDER(),
+            right: BORDER(),
+        },
+        children: [
+            new docx_1.Paragraph({
+                alignment: options.center ? docx_1.AlignmentType.CENTER : docx_1.AlignmentType.LEFT,
+                children: [
+                    new docx_1.TextRun({
+                        text,
+                        bold: (_b = (_a = options.bold) !== null && _a !== void 0 ? _a : options.header) !== null && _b !== void 0 ? _b : false,
+                        color: textColor,
+                        size: 18,
+                        font: 'Calibri',
+                    }),
+                ],
+            }),
+        ],
+    });
 }
-function pageBreak() { return new docx_1.Paragraph({ children: [new docx_1.PageBreak()] }); }
-function spacer(after = 120) { return new docx_1.Paragraph({ spacing: { after }, children: [] }); }
 function buildHeader(title) {
-    return new docx_1.Header({ children: [new docx_1.Paragraph({ border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.primary, space: 1 } }, spacing: { after: 0 }, tabStops: [{ type: docx_1.TabStopType.RIGHT, position: docx_1.TabStopPosition.MAX }], children: [new docx_1.TextRun({ text: title.toUpperCase(), bold: true, size: 16, color: C.primary, font: 'Calibri' }), new docx_1.TextRun({ text: `\t${new Date().toLocaleDateString('fr-FR')}`, size: 16, color: C.muted, font: 'Calibri', italics: true })] })] });
+    return new docx_1.Header({
+        children: [
+            new docx_1.Paragraph({
+                border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.primary, space: 1 } },
+                spacing: { after: 0 },
+                tabStops: [{ type: docx_1.TabStopType.RIGHT, position: docx_1.TabStopPosition.MAX }],
+                children: [
+                    new docx_1.TextRun({ text: title.toUpperCase(), bold: true, size: 16, color: C.primary, font: 'Calibri' }),
+                    new docx_1.TextRun({ text: `\t${new Date().toLocaleDateString('fr-FR')}`, size: 16, color: C.muted, font: 'Calibri', italics: true }),
+                ],
+            }),
+        ],
+    });
 }
 function buildFooter(generatedAt) {
     const dateStr = generatedAt || new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-    return new docx_1.Footer({ children: [new docx_1.Paragraph({ border: { top: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.accent, space: 1 } }, spacing: { before: 80 }, tabStops: [{ type: docx_1.TabStopType.RIGHT, position: docx_1.TabStopPosition.MAX }], children: [new docx_1.TextRun({ text: `Document généré le ${dateStr}  —  Confidentiel`, size: 14, color: C.muted, font: 'Calibri', italics: true }), new docx_1.TextRun({ text: '\tPage ', size: 14, color: C.muted, font: 'Calibri' }), new docx_1.TextRun({ children: [docx_1.PageNumber.CURRENT], size: 14, color: C.primary, bold: true, font: 'Calibri' }), new docx_1.TextRun({ text: ' / ', size: 14, color: C.muted, font: 'Calibri' }), new docx_1.TextRun({ children: [docx_1.PageNumber.TOTAL_PAGES], size: 14, color: C.primary, bold: true, font: 'Calibri' })] })] });
+    return new docx_1.Footer({
+        children: [
+            new docx_1.Paragraph({
+                border: { top: { style: docx_1.BorderStyle.SINGLE, size: 8, color: C.accent, space: 1 } },
+                spacing: { before: 80 },
+                tabStops: [{ type: docx_1.TabStopType.RIGHT, position: docx_1.TabStopPosition.MAX }],
+                children: [
+                    new docx_1.TextRun({ text: `Document généré le ${dateStr}  —  Rapport confidentiel`, size: 14, color: C.muted, font: 'Calibri', italics: true }),
+                    new docx_1.TextRun({ text: '\tPage ', size: 14, color: C.muted, font: 'Calibri' }),
+                    new docx_1.TextRun({ children: [docx_1.PageNumber.CURRENT], size: 14, color: C.primary, bold: true, font: 'Calibri' }),
+                    new docx_1.TextRun({ text: ' / ', size: 14, color: C.muted, font: 'Calibri' }),
+                    new docx_1.TextRun({ children: [docx_1.PageNumber.TOTAL_PAGES], size: 14, color: C.primary, bold: true, font: 'Calibri' }),
+                ],
+            }),
+        ],
+    });
 }
 // =============================================================================
-// 1. EXPORT APES (FormData MySQL)
+//  PAGE DE GARDE COMMUNE
 // =============================================================================
-function buildCoverPage(data) {
-    var _a, _b, _c, _d, _e;
-    const date = data.project_date
-        ? new Date(data.project_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })
-        : '—';
-    const infoTable = new docx_1.Table({
-        width: { size: 7000, type: docx_1.WidthType.DXA },
-        columnWidths: [2800, 4200],
-        rows: [
-            ['Projet', (_a = data.project_name) !== null && _a !== void 0 ? _a : '—'],
-            ['Lieu', (_b = data.location) !== null && _b !== void 0 ? _b : '—'],
-            ['Période', (_c = data.period) !== null && _c !== void 0 ? _c : '—'],
-            ['Date', date],
-            ['Auditeurs', (_d = data.auditors) !== null && _d !== void 0 ? _d : '—'],
-            ['Statut', ((_e = data.status) !== null && _e !== void 0 ? _e : 'draft').toUpperCase()],
-        ].map(([label, val], i) => new docx_1.TableRow({
-            children: [
-                new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary, type: docx_1.ShadingType.CLEAR }, margins: { top: 120, bottom: 120, left: 160, right: 160 }, borders: { top: { style: docx_1.BorderStyle.SINGLE, size: 2, color: C.white }, bottom: { style: docx_1.BorderStyle.SINGLE, size: 2, color: C.white }, left: NO_BORDER, right: { style: docx_1.BorderStyle.SINGLE, size: 4, color: C.accent } }, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
-                new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white, type: docx_1.ShadingType.CLEAR }, margins: { top: 120, bottom: 120, left: 160, right: 160 }, borders: { top: BORDER(), bottom: BORDER(), left: BORDER(), right: NO_BORDER }, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
-            ],
-        })),
-    });
+function buildCoverPage(projectName, projectDate, projectLocation, auditors, formType) {
+    const typeLabel = {
+        apes: "ÉVALUATION APES",
+        guide: "GUIDE D'ENTRETIEN",
+        audit: "CHECKLIST D'AUDIT",
+        conducteur: "CHECKLIST CONDUCTEUR",
+        global: "SYNTHÈSE GLOBALE",
+    };
+    const typeText = formType ? typeLabel[formType] || "RAPPORT D'AUDIT" : "RAPPORT D'AUDIT";
     return [
-        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
-        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: "RAPPORT D'AUDIT", bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
-        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'ENVIRONNEMENTAL ET SOCIAL', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
-        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 200 }, children: [] }),
-        infoTable,
+        new docx_1.Paragraph({ spacing: { before: 2000, after: 0 }, children: [] }),
+        new docx_1.Paragraph({
+            alignment: docx_1.AlignmentType.CENTER,
+            spacing: { after: 120 },
+            children: [new docx_1.TextRun({ text: typeText, bold: true, size: 48, color: C.primary, font: 'Calibri' })],
+        }),
+        new docx_1.Paragraph({
+            alignment: docx_1.AlignmentType.CENTER,
+            spacing: { after: 80 },
+            children: [new docx_1.TextRun({ text: projectName.toUpperCase(), bold: true, size: 36, color: C.secondary, font: 'Calibri' })],
+        }),
+        new docx_1.Paragraph({
+            alignment: docx_1.AlignmentType.CENTER,
+            border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } },
+            spacing: { after: 600 },
+            children: [],
+        }),
+        new docx_1.Table({
+            width: { size: 7000, type: docx_1.WidthType.DXA },
+            columnWidths: [2800, 4200],
+            rows: [
+                new docx_1.TableRow({ children: [
+                        new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: 'Projet', bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                        new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: C.lightGray }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: projectName, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                    ] }),
+                new docx_1.TableRow({ children: [
+                        new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: 'Lieu', bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                        new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: projectLocation, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                    ] }),
+                new docx_1.TableRow({ children: [
+                        new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: 'Date', bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                        new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: C.lightGray }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: projectDate, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                    ] }),
+                new docx_1.TableRow({ children: [
+                        new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: 'Auditeurs', bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
+                        new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: auditors, size: 20, color: C.text, font: 'Calibri' })] })] }),
+                    ] }),
+            ],
+        }),
         pageBreak(),
     ];
 }
-// ── Section 01 : Revue documentaire ──────────────────────────
-function buildDocumentReview(data) {
+// =============================================================================
+//  SOMMAIRE
+// =============================================================================
+function buildTableOfContents(sections) {
+    return [
+        sectionTitle('SOMMAIRE'),
+        spacer(200),
+        ...sections.map((sec, idx) => new docx_1.Paragraph({
+            spacing: { after: 60 },
+            children: [new docx_1.TextRun({ text: `${idx + 1}. ${sec}`, size: 18, color: C.text, font: 'Calibri' })],
+        })),
+        pageBreak(),
+    ];
+}
+// =============================================================================
+//  INTRODUCTION GÉNÉRALE
+// =============================================================================
+function buildIntroduction() {
+    return [
+        sectionTitle('INTRODUCTION', '1'),
+        divider(),
+        subTitle('1.1 Contexte de l\'audit'),
+        paragraph("Le présent rapport d'audit environnemental et social a été réalisé dans le cadre de l'évaluation des performances environnementales et sociales du projet. Il s'inscrit dans une démarche d'amélioration continue visant à garantir la conformité réglementaire et l'adoption des meilleures pratiques."),
+        spacer(),
+        subTitle('1.2 Objectifs et périmètre'),
+        paragraph("L'audit avait pour objectifs de :"),
+        bulletPoint("Évaluer la conformité du projet aux exigences légales et aux engagements du PGES"),
+        bulletPoint("Identifier les non-conformités et les risques environnementaux et sociaux"),
+        bulletPoint("Proposer des mesures correctives et préventives adaptées"),
+        bulletPoint("Capitaliser les bonnes pratiques observées"),
+        spacer(),
+        subTitle('1.3 Méthodologie'),
+        paragraph("La méthodologie déployée combine plusieurs approches complémentaires :"),
+        bulletPoint("Revue documentaire exhaustive des documents de projet"),
+        bulletPoint("Inspection terrain avec observation directe des installations"),
+        bulletPoint("Entretiens semi-directifs avec les parties prenantes"),
+        bulletPoint("Analyse des données quantitatives et qualitatives"),
+        pageBreak(),
+    ];
+}
+// =============================================================================
+//  CONCLUSION GÉNÉRALE
+// =============================================================================
+function buildGeneralConclusion() {
+    return [
+        sectionTitle('CONCLUSION GÉNÉRALE'),
+        divider(),
+        paragraph("Au terme de cet audit environnemental et social, l'évaluation globale du projet permet de dégager les constats suivants :"),
+        spacer(),
+        subTitle('Forces et atouts'),
+        bulletPoint("Engagement de la direction dans la mise en œuvre des mesures environnementales"),
+        bulletPoint("Mise en place d'un système de gestion environnementale structuré"),
+        bulletPoint("Consultation régulière des parties prenantes locales"),
+        spacer(),
+        subTitle('Points d\'amélioration'),
+        bulletPoint("Renforcement nécessaire de la documentation environnementale"),
+        bulletPoint("Amélioration des mesures d'atténuation des nuisances"),
+        bulletPoint("Formation continue du personnel aux enjeux HSE"),
+        spacer(),
+        subTitle('Recommandations stratégiques'),
+        bulletPoint("Élaborer un plan d'actions correctives avec échéancier"),
+        bulletPoint("Désigner des référents HSE par secteur d'activité"),
+        bulletPoint("Instaurer des revues de direction trimestrielles sur les performances E&S"),
+        bulletPoint("Renforcer le mécanisme de gestion des plaintes des communautés"),
+        spacer(),
+        paragraph("La mise en œuvre des recommandations formulées permettra d'atteindre un niveau de conformité satisfaisant et de garantir la pérennité des performances environnementales et sociales du projet.", { bold: true }),
+        spacer(400),
+        new docx_1.Paragraph({
+            alignment: docx_1.AlignmentType.RIGHT,
+            children: [
+                new docx_1.TextRun({ text: "Fait à ______, le ", size: 18, color: C.text, font: 'Calibri' }),
+                new docx_1.TextRun({ text: new Date().toLocaleDateString('fr-FR'), size: 18, color: C.text, font: 'Calibri' }),
+            ],
+        }),
+        spacer(200),
+        new docx_1.Paragraph({
+            alignment: docx_1.AlignmentType.RIGHT,
+            children: [
+                new docx_1.TextRun({ text: "L'équipe d'audit", bold: true, size: 20, color: C.primary, font: 'Calibri' }),
+            ],
+        }),
+        pageBreak(),
+    ];
+}
+// =============================================================================
+//  REVUE DOCUMENTAIRE (APES)
+// =============================================================================
+function buildDocumentReviewSection(data) {
     var _a, _b;
     const dr = data.documentReview;
     if (!dr)
         return [];
-    const documentsPresents = (_a = dr.documents_presents) !== null && _a !== void 0 ? _a : {};
-    const documentsAnalysis = (_b = dr.documents_analysis) !== null && _b !== void 0 ? _b : {};
+    const docsPresents = (_a = dr.documents_presents) !== null && _a !== void 0 ? _a : {};
+    const docsAnalysis = (_b = dr.documents_analysis) !== null && _b !== void 0 ? _b : {};
+    const totalDocs = Object.keys(docsPresents).length;
+    const presentCount = Object.values(docsPresents).filter((v) => v === true).length;
+    const conformityCount = Object.values(docsAnalysis).filter((a) => a.rating === 'conforme').length;
+    const partielCount = Object.values(docsAnalysis).filter((a) => a.rating === 'partiel').length;
+    const nonConformeCount = Object.values(docsAnalysis).filter((a) => a.rating === 'non-conforme').length;
     const COL = [3200, 900, 3538, 2000];
-    const ratingColor = { conforme: '1A7A4A', partiel: 'C07000', 'non-conforme': 'C0392B', 'n/a': C.muted };
+    const ratingColor = {
+        conforme: C.green,
+        partiel: C.yellow,
+        'non-conforme': C.red,
+        'n/a': C.muted,
+    };
     const rows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Document', COL[0]), hCell('Présent', COL[1], true), hCell('Observations', COL[2]), hCell('Conformité', COL[3], true)] }),
-        ...Object.keys(documentsPresents).map((key, i) => {
-            const present = documentsPresents[key];
-            const analysis = documentsAnalysis[key];
+        new docx_1.TableRow({ tableHeader: true, children: [
+                tableCell('Document', COL[0], { header: true }),
+                tableCell('Présent', COL[1], { header: true, center: true }),
+                tableCell('Observations', COL[2], { header: true }),
+                tableCell('Conformité', COL[3], { header: true, center: true }),
+            ] }),
+        ...Object.keys(docsPresents).map((key, i) => {
+            const present = docsPresents[key];
+            const analysis = docsAnalysis[key];
             const rating = (analysis === null || analysis === void 0 ? void 0 : analysis.rating) || 'n/a';
             return new docx_1.TableRow({ children: [
-                    dCell(key, COL[0], { shade: i % 2 === 1 }),
-                    dCell(present ? '✓' : '✗', COL[1], { shade: i % 2 === 1, center: true, bold: true, color: present ? '1A7A4A' : 'C0392B' }),
-                    dCell((analysis === null || analysis === void 0 ? void 0 : analysis.findings) || '—', COL[2], { shade: i % 2 === 1 }),
-                    dCell(rating.toUpperCase(), COL[3], { shade: i % 2 === 1, center: true, bold: true, color: ratingColor[rating] || C.text }),
+                    tableCell(key, COL[0], { shade: i % 2 === 1 }),
+                    tableCell(present ? '✓' : '✗', COL[1], { shade: i % 2 === 1, center: true, bold: true, color: present ? C.green : C.red }),
+                    tableCell((analysis === null || analysis === void 0 ? void 0 : analysis.findings) || '—', COL[2], { shade: i % 2 === 1 }),
+                    tableCell(rating.toUpperCase(), COL[3], { shade: i % 2 === 1, center: true, bold: true, color: ratingColor[rating] || C.text }),
                 ] });
         }),
     ];
     return [
-        ...sectionTitle('01', 'Revue Documentaire'),
+        sectionTitle('REVUE DOCUMENTAIRE'),
+        divider(),
+        subTitle('Analyse quantitative'),
+        paragraph(`Sur les ${totalDocs} documents attendus, ${presentCount} ont été fournis, soit un taux de disponibilité de ${Math.round(presentCount / totalDocs * 100)}%.`),
+        spacer(),
+        subTitle('Analyse de conformité'),
+        paragraph(`En matière de conformité documentaire, ${conformityCount} documents sont jugés conformes (${Math.round(conformityCount / totalDocs * 100)}%), ${partielCount} partiellement conformes et ${nonConformeCount} non conformes.`),
+        spacer(),
+        subTitle('Détail des documents analysés'),
         new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }),
-        spacer(160),
-        ...(dr.documents_manquants ? [kvParagraph('Documents manquants', dr.documents_manquants)] : []),
-        ...(dr.autres_documents ? [kvParagraph('Autres documents', dr.autres_documents)] : []),
-        pageBreak(),
+        spacer(),
+        ...(dr.documents_manquants ? [
+            subTitle('Documents manquants'),
+            paragraph(dr.documents_manquants, { italic: true, color: C.red }),
+        ] : []),
+        ...(dr.autres_documents ? [
+            subTitle('Autres documents consultés'),
+            paragraph(dr.autres_documents, { italic: true }),
+        ] : []),
     ];
 }
-// ── Section 02 : Inspection de terrain ───────────────────────
-function buildInspectionCategory(title, items) {
+// =============================================================================
+//  INSPECTION TERRAIN (APES)
+// =============================================================================
+function buildInspectionAnalysis(items, title) {
+    if (!items || Object.keys(items).length === 0)
+        return [];
+    const values = Object.values(items);
+    const statusCount = values.reduce((acc, v) => {
+        const s = (v.status || '').toLowerCase();
+        if (s.includes('conforme') || s.includes('ok') || s.includes('bon'))
+            acc.conforme++;
+        else if (s.includes('non conforme') || s.includes('critique'))
+            acc.nonConforme++;
+        else if (s.includes('partiel') || s.includes('amélioration'))
+            acc.partiel++;
+        else
+            acc.nonEvalue++;
+        return acc;
+    }, { conforme: 0, nonConforme: 0, partiel: 0, nonEvalue: 0 });
+    const riskCount = values.reduce((acc, v) => {
+        const r = (v.risk || '').toLowerCase();
+        if (r.includes('élevé') || r.includes('critique'))
+            acc.eleve++;
+        else if (r.includes('moyen'))
+            acc.moyen++;
+        else if (r.includes('faible'))
+            acc.faible++;
+        else
+            acc.nonEvalue++;
+        return acc;
+    }, { eleve: 0, moyen: 0, faible: 0, nonEvalue: 0 });
+    return [
+        subTitle(title),
+        paragraph(`Statut des vérifications : ${statusCount.conforme} conformes, ${statusCount.partiel} partiels, ${statusCount.nonConforme} non conformes.`),
+        paragraph(`Niveaux de risque identifiés : ${riskCount.eleve} élevés, ${riskCount.moyen} moyens, ${riskCount.faible} faibles.`),
+    ];
+}
+function buildInspectionTable(title, items) {
     if (!items || Object.keys(items).length === 0)
         return [];
     const COL = [2800, 1400, 3638, 1800];
-    const riskColor = { faible: '1A7A4A', moyen: 'C07000', élevé: 'C0392B', critique: '8B0000' };
+    const riskColor = {
+        faible: C.green,
+        moyen: C.yellow,
+        élevé: C.red,
+        critique: C.red,
+    };
     const rows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Élément inspecté', COL[0]), hCell('Statut', COL[1], true), hCell('Observations', COL[2]), hCell('Niveau de risque', COL[3], true)] }),
+        new docx_1.TableRow({ tableHeader: true, children: [
+                tableCell('Élément inspecté', COL[0], { header: true }),
+                tableCell('Statut', COL[1], { header: true, center: true }),
+                tableCell('Observations', COL[2], { header: true }),
+                tableCell('Niveau de risque', COL[3], { header: true, center: true }),
+            ] }),
         ...Object.entries(items).map(([key, val], i) => {
             const riskKey = (val.risk || '').toLowerCase();
-            const rColorK = Object.keys(riskColor).find(k => riskKey.includes(k));
+            const rColor = Object.keys(riskColor).find(k => riskKey.includes(k));
             return new docx_1.TableRow({ children: [
-                    dCell(key, COL[0], { shade: i % 2 === 1 }),
-                    dCell(val.status, COL[1], { shade: i % 2 === 1, center: true }),
-                    dCell(val.observations, COL[2], { shade: i % 2 === 1 }),
-                    dCell(val.risk, COL[3], { shade: i % 2 === 1, center: true, bold: true, color: rColorK ? riskColor[rColorK] : C.text }),
+                    tableCell(key, COL[0], { shade: i % 2 === 1 }),
+                    tableCell(val.status, COL[1], { shade: i % 2 === 1, center: true }),
+                    tableCell(val.observations, COL[2], { shade: i % 2 === 1 }),
+                    tableCell(val.risk, COL[3], { shade: i % 2 === 1, center: true, bold: true, color: rColor ? riskColor[rColor] : C.text }),
                 ] });
         }),
     ];
-    return [...subTitle(title), new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
+    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
 }
-function buildFieldInspection(data) {
+function buildFieldInspectionSection(data) {
     var _a, _b, _c, _d, _e, _f, _g, _h;
     const fi = data.fieldInspection;
     if (!fi)
         return [];
     return [
-        ...sectionTitle('02', 'Inspection de Terrain'),
-        ...subTitle('Informations générales'),
+        sectionTitle('INSPECTION DE TERRAIN'),
+        divider(),
+        subTitle('Informations générales'),
         kvParagraph('Projet', (_a = fi.project_name) !== null && _a !== void 0 ? _a : '—'),
-        kvParagraph('Date', fi.date ? new Date(fi.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' }) : '—'),
+        kvParagraph('Date', fi.date ? new Date(fi.date).toLocaleDateString('fr-FR') : '—'),
         kvParagraph('Auditeurs', (_b = fi.auditors) !== null && _b !== void 0 ? _b : '—'),
         kvParagraph('Accompagnateurs', (_c = fi.accompaniers) !== null && _c !== void 0 ? _c : '—'),
         kvParagraph('Zones visitées', Array.isArray(fi.zones) ? fi.zones.join(', ') || '—' : '—'),
-        spacer(240),
-        ...buildInspectionCategory("Gestion de l'eau", (_d = fi.water_management) !== null && _d !== void 0 ? _d : {}),
-        ...buildInspectionCategory('Gestion des déchets', (_e = fi.waste_management) !== null && _e !== void 0 ? _e : {}),
-        ...buildInspectionCategory('Émissions', (_f = fi.emissions) !== null && _f !== void 0 ? _f : {}),
-        ...buildInspectionCategory('Santé & Sécurité', (_g = fi.health_safety) !== null && _g !== void 0 ? _g : {}),
-        ...buildInspectionCategory('Communauté', (_h = fi.community) !== null && _h !== void 0 ? _h : {}),
-        pageBreak(),
+        spacer(),
+        subTitle('Synthèse des constats terrain'),
+        ...buildInspectionAnalysis(fi.water_management, 'Gestion de l\'eau'),
+        ...buildInspectionAnalysis(fi.waste_management, 'Gestion des déchets'),
+        ...buildInspectionAnalysis(fi.emissions, 'Émissions atmosphériques'),
+        ...buildInspectionAnalysis(fi.health_safety, 'Santé et sécurité'),
+        ...buildInspectionAnalysis(fi.community, 'Relations communautaires'),
+        spacer(),
+        subTitle('Détail par thématique'),
+        ...buildInspectionTable('Gestion de l\'eau', (_d = fi.water_management) !== null && _d !== void 0 ? _d : {}),
+        ...buildInspectionTable('Gestion des déchets', (_e = fi.waste_management) !== null && _e !== void 0 ? _e : {}),
+        ...buildInspectionTable('Émissions atmosphériques', (_f = fi.emissions) !== null && _f !== void 0 ? _f : {}),
+        ...buildInspectionTable('Santé et sécurité', (_g = fi.health_safety) !== null && _g !== void 0 ? _g : {}),
+        ...buildInspectionTable('Relations communautaires', (_h = fi.community) !== null && _h !== void 0 ? _h : {}),
     ];
 }
-// ── Section 03 : Entretiens parties prenantes ─────────────────
-function buildStakeholderInterview(data) {
+// =============================================================================
+//  ENTRETIENS PARTIES PRENANTES (APES)
+// =============================================================================
+function buildStakeholderInterviewSection(data) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m;
     const si = data.stakeholderInterview;
     if (!si)
         return [];
-    const COL2 = [3200, 6438];
-    const profileRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Champ', COL2[0]), hCell('Valeur', COL2[1])] }),
-        ...[
-            ["Nom complet", (_a = si.profile_name) !== null && _a !== void 0 ? _a : '—'],
-            ["Fonction", (_b = si.profile_function) !== null && _b !== void 0 ? _b : '—'],
-            ["Genre", (_c = si.profile_gender) !== null && _c !== void 0 ? _c : '—'],
-            ["Tranche d'âge", (_d = si.profile_age_range) !== null && _d !== void 0 ? _d : '—'],
-            ["Type partie prenante", (_e = si.stakeholder_type) !== null && _e !== void 0 ? _e : '—'],
-            ["Lieu", (_f = si.location) !== null && _f !== void 0 ? _f : '—'],
-            ["Durée", (_g = si.duration) !== null && _g !== void 0 ? _g : '—'],
-            ["Date", si.date ? new Date(si.date).toLocaleDateString('fr-FR') : '—'],
-        ].map(([k, v], i) => new docx_1.TableRow({ children: [dCell(k, COL2[0], { shade: i % 2 === 1, bold: true }), dCell(v, COL2[1], { shade: i % 2 === 1 })] })),
-    ];
-    const COL_C = [3200, 3219, 3219];
-    const consentRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Confidentialité', COL_C[0]), hCell('Prise de notes', COL_C[1], true), hCell('Enregistrement', COL_C[2], true)] }),
-        new docx_1.TableRow({ children: [
-                dCell(si.consent_confidentiality ? '✓ Accordée' : '✗ Refusée', COL_C[0], { center: true, bold: true, color: si.consent_confidentiality ? '1A7A4A' : 'C0392B' }),
-                dCell(si.consent_notes ? '✓ Accordée' : '✗ Refusée', COL_C[1], { center: true, bold: true, color: si.consent_notes ? '1A7A4A' : 'C0392B' }),
-                dCell(si.consent_recording ? '✓ Accordée' : '✗ Refusée', COL_C[2], { center: true, bold: true, color: si.consent_recording ? '1A7A4A' : 'C0392B' }),
-            ] }),
-    ];
-    const responses = (_h = si.responses) !== null && _h !== void 0 ? _h : {};
-    const responseRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Question', COL2[0]), hCell('Réponse', COL2[1])] }),
-        ...Object.keys(responses).map((k, i) => new docx_1.TableRow({ children: [dCell(k, COL2[0], { shade: i % 2 === 1, bold: true }), dCell(responses[k], COL2[1], { shade: i % 2 === 1 })] })),
-    ];
+    const responses = (_a = si.responses) !== null && _a !== void 0 ? _a : {};
+    const avgScore = (si.eval_quality + si.eval_frankness + si.eval_relevance + si.eval_climate) / 4;
+    const COL = [3200, 6438];
     const EVAL_COL = [2400, 2000, 5238];
     const evalEntries = [
-        ['Qualité', (_j = si.eval_quality) !== null && _j !== void 0 ? _j : 0],
-        ['Franchise', (_k = si.eval_frankness) !== null && _k !== void 0 ? _k : 0],
-        ['Pertinence', (_l = si.eval_relevance) !== null && _l !== void 0 ? _l : 0],
-        ['Climat', (_m = si.eval_climate) !== null && _m !== void 0 ? _m : 0],
-    ];
-    const evalRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', EVAL_COL[0]), hCell('Note /5', EVAL_COL[1], true), hCell('Représentation', EVAL_COL[2])] }),
-        ...evalEntries.map(([k, v], i) => new docx_1.TableRow({ children: [
-                dCell(k, EVAL_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(String(v), EVAL_COL[1], { shade: i % 2 === 1, center: true, bold: true, color: C.secondary }),
-                dCell('★'.repeat(v) + '☆'.repeat(5 - v), EVAL_COL[2], { shade: i % 2 === 1, color: C.secondary }),
-            ] })),
+        ['Qualité de l\'information', (_b = si.eval_quality) !== null && _b !== void 0 ? _b : 0],
+        ['Franchise et authenticité', (_c = si.eval_frankness) !== null && _c !== void 0 ? _c : 0],
+        ['Pertinence pour l\'audit', (_d = si.eval_relevance) !== null && _d !== void 0 ? _d : 0],
+        ['Climat général de l\'échange', (_e = si.eval_climate) !== null && _e !== void 0 ? _e : 0],
     ];
     return [
-        ...sectionTitle('03', 'Entretiens Parties Prenantes'),
-        ...subTitle("Profil de l'interviewé(e)"),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL2, rows: profileRows }),
-        spacer(200),
-        ...subTitle('Consentements recueillis'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL_C, rows: consentRows }),
-        spacer(200),
-        ...subTitle('Réponses aux questions'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL2, rows: responseRows }),
-        spacer(200),
-        ...subTitle("Évaluation de la qualité de l'entretien"),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: EVAL_COL, rows: evalRows }),
-        spacer(160),
-        pageBreak(),
+        sectionTitle('ENTRETIENS PARTIES PRENANTES'),
+        divider(),
+        subTitle('Profil des interviewés'),
+        new docx_1.Table({
+            width: { size: TW, type: docx_1.WidthType.DXA },
+            columnWidths: COL,
+            rows: [
+                new docx_1.TableRow({ tableHeader: true, children: [tableCell('Champ', COL[0], { header: true }), tableCell('Valeur', COL[1], { header: true })] }),
+                new docx_1.TableRow({ children: [tableCell('Nom complet', COL[0]), tableCell((_f = si.profile_name) !== null && _f !== void 0 ? _f : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Fonction', COL[0]), tableCell((_g = si.profile_function) !== null && _g !== void 0 ? _g : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Genre', COL[0]), tableCell((_h = si.profile_gender) !== null && _h !== void 0 ? _h : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Tranche d\'âge', COL[0]), tableCell((_j = si.profile_age_range) !== null && _j !== void 0 ? _j : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Type partie prenante', COL[0]), tableCell((_k = si.stakeholder_type) !== null && _k !== void 0 ? _k : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Lieu', COL[0]), tableCell((_l = si.location) !== null && _l !== void 0 ? _l : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Durée', COL[0]), tableCell((_m = si.duration) !== null && _m !== void 0 ? _m : '—', COL[1])] }),
+                new docx_1.TableRow({ children: [tableCell('Date', COL[0]), tableCell(si.date ? new Date(si.date).toLocaleDateString('fr-FR') : '—', COL[1])] }),
+            ],
+        }),
+        spacer(),
+        subTitle('Analyse des réponses'),
+        paragraph("Les entretiens ont permis de recueillir des informations précieuses sur la perception du projet par les parties prenantes."),
+        spacer(),
+        ...Object.entries(responses).slice(0, 5).map(([question, answer]) => [
+            paragraph(question, { bold: true }),
+            paragraph(String(answer), { italic: true, spacing: 60 }),
+            spacer(60),
+        ]).flat(),
+        spacer(),
+        subTitle('Évaluation de la qualité des entretiens'),
+        paragraph(`Note globale moyenne : ${avgScore.toFixed(1)}/5, témoignant d'une ${avgScore >= 4 ? 'excellente' : avgScore >= 3 ? 'bonne' : 'moyenne'} qualité d'échange.`),
+        new docx_1.Table({
+            width: { size: TW, type: docx_1.WidthType.DXA },
+            columnWidths: EVAL_COL,
+            rows: [
+                new docx_1.TableRow({ tableHeader: true, children: [tableCell('Critère', EVAL_COL[0], { header: true }), tableCell('Note /5', EVAL_COL[1], { header: true, center: true }), tableCell('Représentation', EVAL_COL[2], { header: true })] }),
+                ...evalEntries.map(([k, v], i) => new docx_1.TableRow({ children: [
+                        tableCell(k, EVAL_COL[0], { shade: i % 2 === 1 }),
+                        tableCell(String(v), EVAL_COL[1], { shade: i % 2 === 1, center: true, bold: true, color: C.secondary }),
+                        tableCell('★'.repeat(v) + '☆'.repeat(5 - v), EVAL_COL[2], { shade: i % 2 === 1, color: C.secondary }),
+                    ] })),
+            ],
+        }),
     ];
 }
-// ── Section 04 : Évaluation Genre ─────────────────────────────
-function buildGenderAssessment(data) {
-    var _a, _b, _c, _d, _e, _f;
+// =============================================================================
+//  ÉVALUATION GENRE (APES)
+// =============================================================================
+function buildGenderAssessmentSection(data) {
+    var _a, _b, _c, _d;
     const ga = data.genderAssessment;
     if (!ga)
         return [];
-    // Objectifs
-    const OBJ_COL = [3800, 3000, 2838];
-    const objRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Objectif', OBJ_COL[0]), hCell('Indicateur', OBJ_COL[1]), hCell('Statut', OBJ_COL[2], true)] }),
-        ...((_a = ga.objectives) !== null && _a !== void 0 ? _a : []).map((o, i) => new docx_1.TableRow({ children: [
-                dCell(o.objective, OBJ_COL[0], { shade: i % 2 === 1 }),
-                dCell(o.indicator, OBJ_COL[1], { shade: i % 2 === 1 }),
-                dCell(o.status, OBJ_COL[2], { shade: i % 2 === 1, center: true, bold: true }),
-            ] })),
-    ];
-    // Données quantitatives
-    const QT_COL = [2638, 1500, 1500, 1500, 2500];
-    const qtRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Catégorie', QT_COL[0]), hCell('Femmes', QT_COL[1], true), hCell('Hommes', QT_COL[2], true), hCell('Autres', QT_COL[3], true), hCell('Source', QT_COL[4])] }),
-        ...Object.entries((_b = ga.quantitative_data) !== null && _b !== void 0 ? _b : {}).map(([k, v], i) => new docx_1.TableRow({ children: [
-                dCell(k, QT_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(String(v.women), QT_COL[1], { shade: i % 2 === 1, center: true }),
-                dCell(String(v.men), QT_COL[2], { shade: i % 2 === 1, center: true }),
-                dCell(String(v.other), QT_COL[3], { shade: i % 2 === 1, center: true }),
-                dCell(v.source, QT_COL[4], { shade: i % 2 === 1 }),
-            ] })),
-    ];
-    // Consultations
-    const CONS_COL = [2638, 1500, 2000, 3500];
-    const consRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Groupe', CONS_COL[0]), hCell('Sessions', CONS_COL[1], true), hCell('Participants', CONS_COL[2], true), hCell('Méthode', CONS_COL[3])] }),
-        ...((_c = ga.consultations) !== null && _c !== void 0 ? _c : []).map((c, i) => new docx_1.TableRow({ children: [
-                dCell(c.group, CONS_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(String(c.sessions), CONS_COL[1], { shade: i % 2 === 1, center: true }),
-                dCell(String(c.participants), CONS_COL[2], { shade: i % 2 === 1, center: true }),
-                dCell(c.method, CONS_COL[3], { shade: i % 2 === 1 }),
-            ] })),
-    ];
-    // ── IMPACTS ENVIRONNEMENTAUX (ajout manquant) ──────────────
-    const ENV_COL = [2200, 1700, 1700, 1700, 1338, 900];
-    const envImpacts = ((_d = ga.impacts) !== null && _d !== void 0 ? _d : []).filter((imp) => imp.impact_type === 'environmental');
-    const envRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [
-                hCell('Impact', ENV_COL[0]),
-                hCell('Femmes', ENV_COL[1]),
-                hCell('Hommes', ENV_COL[2]),
-                hCell('Vulnérables', ENV_COL[3]),
-                hCell('Sévérité', ENV_COL[4], true),
-                hCell('', ENV_COL[5]),
-            ] }),
-        ...envImpacts.map((imp, i) => {
-            var _a;
-            const sevColor = { faible: '1A7A4A', modérée: 'C07000', élevée: 'C0392B', critique: '8B0000' };
-            const sev = (imp.severity || '').toLowerCase();
-            const sColorK = Object.keys(sevColor).find(k => sev.includes(k));
-            return new docx_1.TableRow({ children: [
-                    dCell(imp.impact, ENV_COL[0], { shade: i % 2 === 1 }),
-                    dCell(imp.women, ENV_COL[1], { shade: i % 2 === 1 }),
-                    dCell(imp.men, ENV_COL[2], { shade: i % 2 === 1 }),
-                    dCell(imp.vulnerable, ENV_COL[3], { shade: i % 2 === 1 }),
-                    dCell((_a = imp.severity) !== null && _a !== void 0 ? _a : '—', ENV_COL[4], { shade: i % 2 === 1, center: true, bold: true, color: sColorK ? sevColor[sColorK] : C.text }),
-                    dCell('', ENV_COL[5], { shade: i % 2 === 1 }),
-                ] });
-        }),
-    ];
-    // ── IMPACTS SOCIOÉCONOMIQUES (ajout manquant) ──────────────
-    const SOCIO_COL = [2000, 1638, 1638, 1638, 1338, 1386];
-    const socioImpacts = ((_e = ga.impacts) !== null && _e !== void 0 ? _e : []).filter((imp) => imp.impact_type === 'socioeconomic');
-    const socioRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [
-                hCell('Impact', SOCIO_COL[0]),
-                hCell('Femmes', SOCIO_COL[1]),
-                hCell('Hommes', SOCIO_COL[2]),
-                hCell('Vulnérables', SOCIO_COL[3]),
-                hCell('Opportunité', SOCIO_COL[4]),
-                hCell('', SOCIO_COL[5]),
-            ] }),
-        ...socioImpacts.map((imp, i) => {
-            var _a;
-            return new docx_1.TableRow({ children: [
-                    dCell(imp.impact, SOCIO_COL[0], { shade: i % 2 === 1 }),
-                    dCell(imp.women, SOCIO_COL[1], { shade: i % 2 === 1 }),
-                    dCell(imp.men, SOCIO_COL[2], { shade: i % 2 === 1 }),
-                    dCell(imp.vulnerable, SOCIO_COL[3], { shade: i % 2 === 1 }),
-                    dCell((_a = imp.opportunity) !== null && _a !== void 0 ? _a : '—', SOCIO_COL[4], { shade: i % 2 === 1 }),
-                    dCell('', SOCIO_COL[5], { shade: i % 2 === 1 }),
-                ] });
-        }),
-    ];
-    // Recommandations
-    const REC_COL = [3300, 1300, 1500, 1838, 1700];
-    const recRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Recommandation', REC_COL[0]), hCell('Priorité', REC_COL[1], true), hCell('Portée', REC_COL[2], true), hCell('Responsable', REC_COL[3]), hCell('Échéance', REC_COL[4], true)] }),
-        ...((_f = ga.recommendations) !== null && _f !== void 0 ? _f : []).map((r, i) => new docx_1.TableRow({ children: [
-                dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }),
-                dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }),
-                dCell(r.scope, REC_COL[2], { shade: i % 2 === 1, center: true }),
-                dCell(r.responsible, REC_COL[3], { shade: i % 2 === 1 }),
-                dCell(r.deadline, REC_COL[4], { shade: i % 2 === 1, center: true }),
-            ] })),
-    ];
+    const objectives = (_a = ga.objectives) !== null && _a !== void 0 ? _a : [];
+    const achievements = objectives.filter((o) => o.status === 'atteint').length;
+    const inProgress = objectives.filter((o) => o.status === 'en-cours').length;
+    const notAchieved = objectives.filter((o) => o.status === 'non-atteint').length;
+    const envImpacts = ((_b = ga.impacts) !== null && _b !== void 0 ? _b : []).filter((imp) => imp.impact_type === 'environmental');
+    const socioImpacts = ((_c = ga.impacts) !== null && _c !== void 0 ? _c : []).filter((imp) => imp.impact_type === 'socioeconomic');
     return [
-        ...sectionTitle('04', 'Évaluation Genre'),
-        ...subTitle('Objectifs de genre'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: OBJ_COL, rows: objRows }),
-        spacer(200),
-        ...subTitle('Données quantitatives'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: QT_COL, rows: qtRows }),
-        spacer(200),
-        ...subTitle('Consultations réalisées'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: CONS_COL, rows: consRows }),
-        spacer(200),
-        // ── Impacts environnementaux (NOUVEAU) ──
+        sectionTitle('ÉVALUATION GENRE ET INCLUSION'),
+        divider(),
+        subTitle('Objectifs de genre'),
+        paragraph(`Sur les ${objectives.length} objectifs définis, ${achievements} sont atteints, ${inProgress} en cours et ${notAchieved} non atteints.`),
+        spacer(),
+        subTitle('Impacts différenciés'),
         ...(envImpacts.length > 0 ? [
-            ...subTitle('Impacts environnementaux différenciés'),
-            new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: ENV_COL, rows: envRows }),
-            spacer(200),
+            paragraph(`Impacts environnementaux : ${envImpacts.length} impacts différenciés ont été identifiés.`),
         ] : []),
-        // ── Impacts socioéconomiques (NOUVEAU) ──
         ...(socioImpacts.length > 0 ? [
-            ...subTitle('Impacts socioéconomiques différenciés'),
-            new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: SOCIO_COL, rows: socioRows }),
-            spacer(200),
+            paragraph(`Impacts socioéconomiques : ${socioImpacts.length} impacts différenciés ont été identifiés.`),
         ] : []),
-        ...subTitle('Recommandations'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: REC_COL, rows: recRows }),
-        spacer(160),
-        pageBreak(),
+        spacer(),
+        subTitle('Recommandations genre'),
+        paragraph(`Un total de ${((_d = ga.recommendations) !== null && _d !== void 0 ? _d : []).length} recommandations ont été formulées pour renforcer l'intégration du genre.`),
     ];
 }
-// ── Section 05 : Mécanisme de plainte ─────────────────────────
-function buildComplaintMechanism(data) {
-    var _a, _b, _c, _d, _e, _f;
+// =============================================================================
+//  MÉCANISME DE PLAINTE (APES)
+// =============================================================================
+function buildComplaintMechanismSection(data) {
+    var _a, _b, _c, _d;
     const cm = data.complaintMechanism;
     if (!cm)
         return [];
-    // ── Base documentaire (avec evidence — CORRIGÉ) ────────────
-    const DOC_COL = [2000, 2319, 2819, 2500];
-    const docRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [
-                hCell('Document', DOC_COL[0]),
-                hCell('Constat', DOC_COL[1]),
-                hCell('Preuve', DOC_COL[2]), // ← evidence ajouté
-                hCell('Évaluation', DOC_COL[3]),
-            ] }),
-        ...Object.entries((_a = cm.documentary_basis) !== null && _a !== void 0 ? _a : {}).map(([k, v], i) => {
-            var _a;
-            return new docx_1.TableRow({ children: [
-                    dCell(k, DOC_COL[0], { shade: i % 2 === 1, bold: true }),
-                    dCell(v.finding, DOC_COL[1], { shade: i % 2 === 1 }),
-                    dCell((_a = v.evidence) !== null && _a !== void 0 ? _a : '—', DOC_COL[2], { shade: i % 2 === 1 }), // ← evidence
-                    dCell(v.evaluation, DOC_COL[3], { shade: i % 2 === 1 }),
-                ] });
-        }),
-    ];
-    // Critères clés
-    const CRIT_COL = [3819, 5819];
-    const critRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Critère', CRIT_COL[0]), hCell('Évaluation', CRIT_COL[1])] }),
-        ...Object.entries((_b = cm.key_criteria) !== null && _b !== void 0 ? _b : {}).map(([k, v], i) => new docx_1.TableRow({ children: [
-                dCell(k, CRIT_COL[0], { shade: i % 2 === 1, bold: true }),
-                dCell(v.evaluation, CRIT_COL[1], { shade: i % 2 === 1 }),
-            ] })),
-    ];
-    // Faiblesses
-    const sevColor = { faible: '1A7A4A', modérée: 'C07000', élevée: 'C0392B', critique: '8B0000' };
-    const WEAK_COL = [3400, 3638, 2600];
-    const weakRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Déficience', WEAK_COL[0]), hCell('Conséquence', WEAK_COL[1]), hCell('Sévérité', WEAK_COL[2], true)] }),
-        ...((_c = cm.weaknesses) !== null && _c !== void 0 ? _c : []).map((w, i) => {
-            const sev = (w.severity || '').toLowerCase();
-            const sColorK = Object.keys(sevColor).find(k => sev.includes(k));
-            return new docx_1.TableRow({ children: [
-                    dCell(w.deficiency, WEAK_COL[0], { shade: i % 2 === 1 }),
-                    dCell(w.consequence, WEAK_COL[1], { shade: i % 2 === 1 }),
-                    dCell(w.severity, WEAK_COL[2], { shade: i % 2 === 1, center: true, bold: true, color: sColorK ? sevColor[sColorK] : C.text }),
-                ] });
-        }),
-    ];
-    // Recommandations
-    const REC_COL = [3638, 1500, 2300, 2200];
-    const recRows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('Recommandation', REC_COL[0]), hCell('Priorité', REC_COL[1], true), hCell('Responsable', REC_COL[2]), hCell('Échéance', REC_COL[3], true)] }),
-        ...((_d = cm.recommendations) !== null && _d !== void 0 ? _d : []).map((r, i) => new docx_1.TableRow({ children: [
-                dCell(r.recommendation, REC_COL[0], { shade: i % 2 === 1 }),
-                dCell(r.priority, REC_COL[1], { shade: i % 2 === 1, center: true, bold: true }),
-                dCell(r.responsible, REC_COL[2], { shade: i % 2 === 1 }),
-                dCell(r.deadline, REC_COL[3], { shade: i % 2 === 1, center: true }),
-            ] })),
-    ];
+    const docCount = Object.keys((_a = cm.documentary_basis) !== null && _a !== void 0 ? _a : {}).length;
+    const weaknessesCount = ((_b = cm.weaknesses) !== null && _b !== void 0 ? _b : []).length;
+    const strengthsCount = ((_c = cm.strengths) !== null && _c !== void 0 ? _c : []).length;
+    const recCount = ((_d = cm.recommendations) !== null && _d !== void 0 ? _d : []).length;
+    const conclusionMap = {
+        efficace: { text: 'EFFICACE ET CONFORME', color: C.green },
+        ameliorer: { text: 'FONCTIONNEL MAIS À AMÉLIORER', color: C.yellow },
+        inoperant: { text: 'INOPÉRANT OU INEFFICACE', color: C.red },
+    };
+    const conclusion = conclusionMap[cm.global_conclusion] || { text: 'Non évalué', color: C.muted };
     return [
-        ...sectionTitle('05', 'Mécanisme de Plainte'),
-        ...subTitle('Base documentaire'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: DOC_COL, rows: docRows }),
-        spacer(200),
-        ...subTitle("Critères clés d'évaluation"),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: CRIT_COL, rows: critRows }),
-        spacer(200),
-        ...subTitle('Points forts identifiés'),
-        ...((_e = cm.strengths) !== null && _e !== void 0 ? _e : []).length === 0
-            ? [new docx_1.Paragraph({ spacing: { after: 60 }, children: [new docx_1.TextRun({ text: '—', size: 20, font: 'Calibri', color: C.muted, italics: true })] })]
-            : ((_f = cm.strengths) !== null && _f !== void 0 ? _f : []).map((s) => new docx_1.Paragraph({
-                numbering: { reference: 'bullets', level: 0 },
-                spacing: { after: 60 },
-                children: [new docx_1.TextRun({ text: s, size: 20, font: 'Calibri', color: C.text })],
-            })),
-        spacer(200),
-        ...subTitle('Faiblesses et risques'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: WEAK_COL, rows: weakRows }),
-        spacer(200),
-        ...subTitle('Recommandations'),
-        new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: REC_COL, rows: recRows }),
-        spacer(240),
-        ...subTitle('Conclusion générale'),
-        new docx_1.Paragraph({ spacing: { after: 160 }, border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } }, indent: { left: 280 }, children: [new docx_1.TextRun({ text: cm.global_conclusion || '—', size: 20, color: C.text, font: 'Calibri', italics: true })] }),
+        sectionTitle('MÉCANISME DE GESTION DES PLAINTES'),
+        divider(),
+        subTitle('Analyse documentaire'),
+        paragraph(`La base documentaire du MGP comprend ${docCount} documents analysés.`),
+        spacer(),
+        subTitle('Points forts et faiblesses'),
+        paragraph(`Le MGP présente ${strengthsCount} points forts et ${weaknessesCount} faiblesses identifiées.`),
+        spacer(),
+        subTitle('Conclusion'),
+        new docx_1.Paragraph({
+            spacing: { after: 160 },
+            border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: conclusion.color, space: 20 } },
+            indent: { left: 280 },
+            children: [new docx_1.TextRun({ text: conclusion.text, size: 20, color: conclusion.color, font: 'Calibri', bold: true })],
+        }),
+        spacer(),
+        subTitle('Recommandations'),
+        paragraph(`${recCount} recommandations ont été formulées pour améliorer l'efficacité du MGP.`),
     ];
 }
-// ── Export principal APES ─────────────────────────────────────
-function generateFormDataWordDocument(data) {
+// =============================================================================
+//  GUIDE ENTRETIEN
+// =============================================================================
+function buildGuideEntretienSection(data) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    if (!data || !data.guide_type)
+        return [];
+    const guideLabels = {
+        autorites_locales: 'Autorités Locales',
+        riverains_communaute: 'Riverains / Communauté',
+        travailleurs_chantier: 'Travailleurs du Chantier',
+        maitrise_ouvrage_entreprise: "Maîtrise d'Ouvrage",
+        direction_cfpt: 'Direction CFPT',
+    };
+    const result = [
+        sectionTitle('GUIDE D\'ENTRETIEN'),
+        divider(),
+        subTitle('Informations générales'),
+        kvParagraph('Type de guide', (_a = guideLabels[data.guide_type]) !== null && _a !== void 0 ? _a : data.guide_type),
+        kvParagraph('Sous-projet', (_b = data.subprojet) !== null && _b !== void 0 ? _b : '—'),
+        kvParagraph('Nom', (_c = data.gi_nom) !== null && _c !== void 0 ? _c : '—'),
+        kvParagraph('Fonction', (_d = data.gi_fonction) !== null && _d !== void 0 ? _d : '—'),
+        kvParagraph('Contact', (_e = data.gi_contact) !== null && _e !== void 0 ? _e : '—'),
+        kvParagraph('Date', data.gi_date ? new Date(data.gi_date).toLocaleDateString('fr-FR') : '—'),
+        kvParagraph('Lieu', (_f = data.gi_lieu) !== null && _f !== void 0 ? _f : '—'),
+        spacer(),
+    ];
+    // Thèmes
+    const themes = [
+        { key: 'theme1', title: 'Thème 1' },
+        { key: 'theme2', title: 'Thème 2' },
+        { key: 'theme3', title: 'Thème 3' },
+        { key: 'theme4', title: 'Thème 4' },
+    ];
+    for (const theme of themes) {
+        const themeData = data[theme.key];
+        if ((_g = themeData === null || themeData === void 0 ? void 0 : themeData.questions) === null || _g === void 0 ? void 0 : _g.length) {
+            result.push(subTitle(theme.title));
+            for (const q of themeData.questions) {
+                result.push(paragraph(`${q.questionId || q.question_id}: ${q.question}`, { bold: true }));
+                result.push(paragraph(`Réponse : ${q.reponse || '—'}`, { italic: true, spacing: 60 }));
+                result.push(spacer(60));
+            }
+            result.push(spacer());
+        }
+    }
+    if (data.notes_auditeur) {
+        result.push(subTitle('Notes de l\'auditeur'));
+        result.push(paragraph(data.notes_auditeur, { italic: true }));
+    }
+    return result;
+}
+// =============================================================================
+//  CHECKLIST AUDIT
+// =============================================================================
+function buildAuditSection(data) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    if (!data || !data.subprojet)
+        return [];
+    const COL = [800, 3000, 2000, 2000, 1838];
+    const cConf = (c) => { var _a; return ((_a = { O: C.green, N: C.red, P: C.yellow }[c]) !== null && _a !== void 0 ? _a : C.muted); };
+    const lConf = (c) => { var _a; return ((_a = { O: 'Conforme', N: 'Non conforme', P: 'Partiel' }[c]) !== null && _a !== void 0 ? _a : 'S.O.'); };
+    const sections = [
+        { title: 'Cadre juridique', key: 'section1_cadreJuridique' },
+        { title: 'Stabilité de la structure', key: 'section2_infraSecurite', sub: 'stabiliteStructure' },
+        { title: 'Sécurité incendie', key: 'section2_infraSecurite', sub: 'securiteIncendie' },
+        { title: 'Accessibilité PMR', key: 'section2_infraSecurite', sub: 'accessibilitePMR' },
+        { title: 'Gestion des déchets', key: 'section3_gestionEnvSociale', sub: 'gestionDechets' },
+        { title: 'Nuisances et pollution', key: 'section3_gestionEnvSociale', sub: 'nuisancesPollution' },
+        { title: 'Santé sécurité travailleurs', key: 'section3_gestionEnvSociale', sub: 'santeSecuteTravailleurs' },
+        { title: 'Relations communautés', key: 'section4_gestionSociale', sub: 'relationsCommunautes' },
+        { title: 'MGP', key: 'section4_gestionSociale', sub: 'mgp' },
+        { title: 'Sécurité sûreté', key: 'section5_risquesERP', sub: 'securiteSurete' },
+        { title: 'Hygiène environnement', key: 'section5_risquesERP', sub: 'hygieneEnvironnement' },
+    ];
+    const result = [
+        sectionTitle('CHECKLIST D\'AUDIT'),
+        divider(),
+        subTitle('Informations générales'),
+        kvParagraph('Sous-projet', (_a = data.subprojet) !== null && _a !== void 0 ? _a : '—'),
+        kvParagraph('Auditeurs', (_b = data.auditeurs) !== null && _b !== void 0 ? _b : '—'),
+        kvParagraph('Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—'),
+        spacer(),
+    ];
+    for (const section of sections) {
+        let items = [];
+        if (section.sub) {
+            items = (_d = (_c = data[section.key]) === null || _c === void 0 ? void 0 : _c[section.sub]) !== null && _d !== void 0 ? _d : [];
+        }
+        else {
+            items = (_e = data[section.key]) !== null && _e !== void 0 ? _e : [];
+        }
+        if (items.length > 0) {
+            result.push(subTitle(section.title));
+            const rows = [
+                new docx_1.TableRow({ tableHeader: true, children: [
+                        tableCell('N°', COL[0], { header: true, center: true }),
+                        tableCell('Critère', COL[1], { header: true }),
+                        tableCell('Observations', COL[2], { header: true }),
+                        tableCell('Conformité', COL[3], { header: true, center: true }),
+                        tableCell('Risque', COL[4], { header: true, center: true }),
+                    ] }),
+                ...items.map((item, i) => new docx_1.TableRow({ children: [
+                        tableCell(item.numero || '—', COL[0], { shade: i % 2 === 1, center: true }),
+                        tableCell(item.critere || '—', COL[1], { shade: i % 2 === 1 }),
+                        tableCell(item.observations || '—', COL[2], { shade: i % 2 === 1 }),
+                        tableCell(lConf(item.conformite), COL[3], { shade: i % 2 === 1, center: true, bold: true, color: cConf(item.conformite) }),
+                        tableCell(item.risque_non_conformite || '—', COL[4], { shade: i % 2 === 1, center: true }),
+                    ] })),
+            ];
+            result.push(new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }));
+            result.push(spacer(160));
+        }
+    }
+    if (data.synthese) {
+        result.push(subTitle('Synthèse'));
+        result.push(kvParagraph('Non-conformités majeures', String((_f = data.synthese.nombreNonConformitesMajeures) !== null && _f !== void 0 ? _f : 0)));
+        result.push(kvParagraph('Domaines critiques', (_g = data.synthese.domainesCritiques) !== null && _g !== void 0 ? _g : '—'));
+    }
+    return result;
+}
+// =============================================================================
+//  CHECKLIST CONDUCTEUR
+// =============================================================================
+function buildConducteurSection(data) {
+    var _a, _b, _c, _d, _e, _f, _g;
+    if (!data || !data.subprojet)
+        return [];
+    const COL = [600, 3500, 1000, 2000, 2538];
+    const rC = (r) => { var _a; return ((_a = { oui: C.green, non: C.red, partiellement: C.yellow, nsp: C.secondary }[r]) !== null && _a !== void 0 ? _a : C.muted); };
+    const rL = (r) => { var _a; return ((_a = { oui: 'Oui', non: 'Non', partiellement: 'Partiel', nsp: 'NSP' }[r]) !== null && _a !== void 0 ? _a : 'S.O.'); };
+    const sections = [
+        { num: '01', title: 'Informations générales', key: 'section1_infoGenerales' },
+        { num: '02', title: 'Processus initial T1', key: 'section2_processusInitialT1' },
+        { num: '03', title: 'Installation T2', key: 'section3_installationT2' },
+        { num: '04', title: 'Recrutement T2', key: 'section4_recrutementT2' },
+        { num: '05', title: 'HSE T2', key: 'section5_hseT2' },
+        { num: '06', title: 'Gestion environnementale T2', key: 'section6_gestionEnvT2' },
+        { num: '07', title: 'Sensibilisation T2', key: 'section7_sensibilisationT2' },
+        { num: '08', title: 'MGP T2', key: 'section8_mgpT2' },
+        { num: '09', title: 'Fermeture T2', key: 'section9_fermetureT2' },
+        { num: '10', title: 'Exploitation T3', key: 'section10_exploitationT3' },
+        { num: '11', title: 'Synthèse', key: 'section11_synthese' },
+    ];
+    const result = [
+        sectionTitle('CHECKLIST CONDUCTEUR DES TRAVAUX'),
+        divider(),
+        subTitle('Informations générales'),
+        kvParagraph('Sous-projet', (_a = data.subprojet) !== null && _a !== void 0 ? _a : '—'),
+        kvParagraph('Auditeur', (_b = data.auditeur) !== null && _b !== void 0 ? _b : '—'),
+        kvParagraph('Entreprise', (_c = data.entreprise) !== null && _c !== void 0 ? _c : '—'),
+        kvParagraph('Personne rencontrée', (_d = data.personne_rencontree) !== null && _d !== void 0 ? _d : '—'),
+        kvParagraph('Fonction', (_e = data.fonction) !== null && _e !== void 0 ? _e : '—'),
+        kvParagraph('Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—'),
+        kvParagraph('Lieu', (_f = data.lieu) !== null && _f !== void 0 ? _f : '—'),
+        spacer(),
+    ];
+    for (const section of sections) {
+        const items = (_g = data[section.key]) !== null && _g !== void 0 ? _g : [];
+        if (items.length > 0) {
+            result.push(subTitle(`${section.num} - ${section.title}`));
+            const rows = [
+                new docx_1.TableRow({ tableHeader: true, children: [
+                        tableCell('N°', COL[0], { header: true, center: true }),
+                        tableCell('Question', COL[1], { header: true }),
+                        tableCell('Réponse', COL[2], { header: true, center: true }),
+                        tableCell('Détail', COL[3], { header: true }),
+                        tableCell('Observations', COL[4], { header: true }),
+                    ] }),
+                ...items.map((item, i) => new docx_1.TableRow({ children: [
+                        tableCell(item.numero || '—', COL[0], { shade: i % 2 === 1, center: true }),
+                        tableCell((item.question || '').substring(0, 80), COL[1], { shade: i % 2 === 1 }),
+                        tableCell(rL(item.reponse_booleenne), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: rC(item.reponse_booleenne) }),
+                        tableCell((item.reponse || '—').substring(0, 50), COL[3], { shade: i % 2 === 1 }),
+                        tableCell((item.observations || '—').substring(0, 50), COL[4], { shade: i % 2 === 1 }),
+                    ] })),
+            ];
+            result.push(new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }));
+            result.push(spacer(160));
+        }
+    }
+    if (data.commentaires_libres) {
+        result.push(subTitle('Commentaires libres'));
+        result.push(paragraph(data.commentaires_libres, { italic: true }));
+    }
+    return result;
+}
+// =============================================================================
+//  SYNTHÈSE RAPIDE
+// =============================================================================
+function buildQuickSynthesis(data) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+    const result = [
+        sectionTitle('SYNTHÈSE RAPIDE'),
+        divider(),
+    ];
+    let hasData = false;
+    if (data.documentReview) {
+        const dr = data.documentReview;
+        const docsPresents = (_a = dr.documents_presents) !== null && _a !== void 0 ? _a : {};
+        const presentCount = Object.values(docsPresents).filter((v) => v === true).length;
+        const totalDocs = Object.keys(docsPresents).length;
+        result.push(paragraph(`Revue documentaire : ${presentCount}/${totalDocs} documents disponibles (${Math.round(presentCount / totalDocs * 100)}%)`));
+        hasData = true;
+    }
+    if (data.fieldInspection) {
+        const fi = data.fieldInspection;
+        const allItems = Object.assign(Object.assign(Object.assign(Object.assign(Object.assign({}, ((_b = fi.water_management) !== null && _b !== void 0 ? _b : {})), ((_c = fi.waste_management) !== null && _c !== void 0 ? _c : {})), ((_d = fi.emissions) !== null && _d !== void 0 ? _d : {})), ((_e = fi.health_safety) !== null && _e !== void 0 ? _e : {})), ((_f = fi.community) !== null && _f !== void 0 ? _f : {}));
+        const total = Object.keys(allItems).length;
+        const risks = Object.values(allItems).filter((v) => (v.risk || '').toLowerCase().includes('élevé')).length;
+        result.push(paragraph(`Inspection terrain : ${total} points vérifiés, ${risks} risques élevés identifiés`));
+        hasData = true;
+    }
+    if (data.stakeholderInterview) {
+        const si = data.stakeholderInterview;
+        const avgScore = (si.eval_quality + si.eval_frankness + si.eval_relevance + si.eval_climate) / 4;
+        result.push(paragraph(`Entretiens : Note moyenne ${avgScore.toFixed(1)}/5`));
+        hasData = true;
+    }
+    if (data.genderAssessment) {
+        const ga = data.genderAssessment;
+        const recCount = ((_g = ga.recommendations) !== null && _g !== void 0 ? _g : []).length;
+        result.push(paragraph(`👥 Évaluation genre : ${recCount} recommandations formulées`));
+        hasData = true;
+    }
+    if (data.complaintMechanism) {
+        const cm = data.complaintMechanism;
+        const weakCount = ((_h = cm.weaknesses) !== null && _h !== void 0 ? _h : []).length;
+        const strongCount = ((_j = cm.strengths) !== null && _j !== void 0 ? _j : []).length;
+        result.push(paragraph(`MGP : ${strongCount} points forts, ${weakCount} points faibles`));
+        hasData = true;
+    }
+    if (data.guide_type) {
+        result.push(paragraph(`Guide d'entretien : ${data.subprojet || 'Sans sous-projet'}`));
+        hasData = true;
+    }
+    if (data.subprojet && !data.guide_type) {
+        if (data.auditeurs) {
+            result.push(paragraph(`Checklist audit : ${data.subprojet} - ${data.auditeurs}`));
+            hasData = true;
+        }
+        else if (data.auditeur) {
+            result.push(paragraph(`Checklist conducteur : ${data.subprojet} - ${data.entreprise || data.auditeur}`));
+            hasData = true;
+        }
+    }
+    if (!hasData) {
+        result.push(paragraph("Aucune donnée disponible pour la synthèse."));
+    }
+    result.push(pageBreak());
+    return result;
+}
+// =============================================================================
+//  EXPORTS PRINCIPAUX
+// =============================================================================
+/**
+ * Export un formulaire APES complet (5 annexes)
+ */
+function exportAPESWord(data, projectName, projectLocation, auditors) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a;
         const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        const projectName = (_a = data.project_name) !== null && _a !== void 0 ? _a : 'Projet';
+        const projectDate = data.project_date ? new Date(data.project_date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+        const sectionsList = [
+            'INTRODUCTION',
+            'REVUE DOCUMENTAIRE',
+            'INSPECTION DE TERRAIN',
+            'ENTRETIENS PARTIES PRENANTES',
+            'ÉVALUATION GENRE',
+            'MÉCANISME DE PLAINTE',
+            'SYNTHÈSE RAPIDE',
+            'CONCLUSION GÉNÉRALE',
+        ];
         const doc = new docx_1.Document({
-            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
+            numbering: {
+                config: [{
+                        reference: 'bullet-list',
+                        levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
+                    }],
+            },
             styles: {
                 default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
                 paragraphStyles: [
-                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
-                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 32, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 120 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 24, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
                 ],
             },
             sections: [
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
-                    children: buildCoverPage(data),
+                    children: buildCoverPage(projectName, projectDate, projectLocation, auditors, 'apes'),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildTableOfContents(sectionsList),
                 },
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
                     headers: { default: buildHeader(projectName) },
                     footers: { default: buildFooter(generatedAt) },
                     children: [
-                        ...buildDocumentReview(data),
-                        ...buildFieldInspection(data),
-                        ...buildStakeholderInterview(data),
-                        ...buildGenderAssessment(data),
-                        ...buildComplaintMechanism(data),
-                    ],
-                },
-            ],
-        });
-        return docx_1.Packer.toBuffer(doc);
-    });
-}
-// =============================================================================
-// 2. EXPORT CHECKLIST AUDIT
-// =============================================================================
-function buildCritereTable(items) {
-    if (!(items === null || items === void 0 ? void 0 : items.length))
-        return [];
-    const COL = [800, 3000, 2000, 2000, 1838];
-    const cConf = (c) => { var _a; return ((_a = { O: C.green, N: C.red, P: C.yellow }[c]) !== null && _a !== void 0 ? _a : C.muted); };
-    const lConf = (c) => { var _a; return ((_a = { O: 'Conforme', N: 'Non conforme', P: 'Partiel' }[c]) !== null && _a !== void 0 ? _a : 'S.O.'); };
-    const rows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Critère', COL[1]), hCell('Sources/Méthode', COL[2]), hCell('Observations', COL[3]), hCell('Conformité', COL[4], true)] }),
-        ...items.map((item, i) => {
-            var _a, _b;
-            return new docx_1.TableRow({ children: [
-                    dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
-                    dCell(item.critere, COL[1], { shade: i % 2 === 1 }),
-                    dCell((_a = item.sources_methode) !== null && _a !== void 0 ? _a : '—', COL[2], { shade: i % 2 === 1 }),
-                    dCell((_b = item.observations) !== null && _b !== void 0 ? _b : '—', COL[3], { shade: i % 2 === 1 }),
-                    dCell(lConf(item.conformite), COL[4], { shade: i % 2 === 1, center: true, bold: true, color: cConf(item.conformite) }),
-                ] });
-        }),
-    ];
-    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
-}
-function buildDocumentAuditTable(items) {
-    if (!(items === null || items === void 0 ? void 0 : items.length))
-        return [];
-    const COL = [800, 3000, 1500, 4338];
-    const cDisp = (d) => { var _a; return ((_a = { O: C.green, N: C.red, P: C.yellow }[d]) !== null && _a !== void 0 ? _a : C.muted); };
-    const lDisp = (d) => { var _a; return ((_a = { O: 'Disponible', N: 'Non disponible', P: 'Partiel' }[d]) !== null && _a !== void 0 ? _a : 'S.O.'); };
-    const rows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Document', COL[1]), hCell('Disponible', COL[2], true), hCell('Commentaires', COL[3])] }),
-        ...items.map((item, i) => new docx_1.TableRow({ children: [
-                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
-                dCell(item.document, COL[1], { shade: i % 2 === 1 }),
-                dCell(lDisp(item.disponible), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: cDisp(item.disponible) }),
-                dCell(item.commentaires || '—', COL[3], { shade: i % 2 === 1 }),
-            ] })),
-    ];
-    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
-}
-function exportChecklistAuditWord(data) {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t;
-        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        const doc = new docx_1.Document({
-            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
-            styles: {
-                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
-                paragraphStyles: [
-                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
-                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
-                ],
-            },
-            sections: [
-                {
-                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
-                    children: [
-                        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: "CHECKLIST D'AUDIT", bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'ENVIRONNEMENTAL ET SOCIAL', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-                        new docx_1.Table({
-                            width: { size: 7000, type: docx_1.WidthType.DXA },
-                            columnWidths: [2800, 4200],
-                            rows: [
-                                ['Sous-projet', (_a = data.subprojet) !== null && _a !== void 0 ? _a : '—'],
-                                ['Auditeurs', (_b = data.auditeurs) !== null && _b !== void 0 ? _b : '—'],
-                                ['Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—'],
-                            ].map(([label, val], i) => new docx_1.TableRow({ children: [
-                                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
-                                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
-                                ] })),
-                        }),
+                        ...buildIntroduction(),
+                        ...buildDocumentReviewSection(data),
                         pageBreak(),
-                    ],
-                },
-                {
-                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
-                    headers: { default: buildHeader("CHECKLIST D'AUDIT") },
-                    footers: { default: buildFooter(generatedAt) },
-                    children: [
-                        ...sectionTitle('01', 'Cadre juridique, administratif et foncier'),
-                        ...buildCritereTable(data.section1_cadreJuridique),
-                        ...sectionTitle('02', 'Conception, structure et sécurité'),
-                        ...subTitle('Stabilité de la structure'), ...buildCritereTable((_c = data.section2_infraSecurite) === null || _c === void 0 ? void 0 : _c.stabiliteStructure),
-                        ...subTitle('Sécurité incendie'), ...buildCritereTable((_d = data.section2_infraSecurite) === null || _d === void 0 ? void 0 : _d.securiteIncendie),
-                        ...subTitle('Accessibilité PMR'), ...buildCritereTable((_e = data.section2_infraSecurite) === null || _e === void 0 ? void 0 : _e.accessibilitePMR),
-                        ...sectionTitle('03', 'Gestion environnementale et sociale du chantier'),
-                        ...subTitle('Gestion des déchets'), ...buildCritereTable((_f = data.section3_gestionEnvSociale) === null || _f === void 0 ? void 0 : _f.gestionDechets),
-                        ...subTitle('Nuisances et pollution'), ...buildCritereTable((_g = data.section3_gestionEnvSociale) === null || _g === void 0 ? void 0 : _g.nuisancesPollution),
-                        ...subTitle('Santé et sécurité travailleurs'), ...buildCritereTable((_h = data.section3_gestionEnvSociale) === null || _h === void 0 ? void 0 : _h.santeSecuteTravailleurs),
-                        ...sectionTitle('04', 'Gestion sociale et parties prenantes'),
-                        ...subTitle('Relations avec les communautés'), ...buildCritereTable((_j = data.section4_gestionSociale) === null || _j === void 0 ? void 0 : _j.relationsCommunautes),
-                        ...subTitle('MGP'), ...buildCritereTable((_k = data.section4_gestionSociale) === null || _k === void 0 ? void 0 : _k.mgp),
-                        ...sectionTitle('05', "Analyse des risques liés au futur ERP"),
-                        ...subTitle('Sécurité / Sûreté'), ...buildCritereTable((_l = data.section5_risquesERP) === null || _l === void 0 ? void 0 : _l.securiteSurete),
-                        ...subTitle('Hygiène et environnement'), ...buildCritereTable((_m = data.section5_risquesERP) === null || _m === void 0 ? void 0 : _m.hygieneEnvironnement),
-                        ...sectionTitle('06', 'Bilan documentaire'),
-                        ...buildDocumentAuditTable(data.section6_bilanDocumentaire),
-                        ...sectionTitle('07', 'Synthèse'),
-                        kvParagraph('Nombre de non-conformités majeures', String((_p = (_o = data.synthese) === null || _o === void 0 ? void 0 : _o.nombreNonConformitesMajeures) !== null && _p !== void 0 ? _p : 0)),
-                        kvParagraph('Domaines critiques', (_r = (_q = data.synthese) === null || _q === void 0 ? void 0 : _q.domainesCritiques) !== null && _r !== void 0 ? _r : '—'),
-                        kvParagraph("Signature de l'auditeur", (_t = (_s = data.synthese) === null || _s === void 0 ? void 0 : _s.signatureAuditeur) !== null && _t !== void 0 ? _t : '—'),
-                        spacer(240),
-                    ],
-                },
-            ],
-        });
-        return docx_1.Packer.toBuffer(doc);
-    });
-}
-// =============================================================================
-// 3. EXPORT CHECKLIST CONDUCTEUR
-// =============================================================================
-function buildQuestionTableConducteur(items) {
-    if (!(items === null || items === void 0 ? void 0 : items.length))
-        return [];
-    const COL = [600, 3500, 1000, 1800, 2738];
-    const rC = (r) => { var _a; return ((_a = { oui: C.green, non: C.red, partiellement: C.yellow, nsp: C.secondary }[r]) !== null && _a !== void 0 ? _a : C.muted); };
-    const rL = (r) => { var _a; return ((_a = { oui: 'Oui', non: 'Non', partiellement: 'Partiel', nsp: 'NSP' }[r]) !== null && _a !== void 0 ? _a : 'S.O.'); };
-    const rows = [
-        new docx_1.TableRow({ tableHeader: true, children: [hCell('N°', COL[0], true), hCell('Question', COL[1]), hCell('Réponse', COL[2], true), hCell('Réponse détaillée', COL[3]), hCell('Observations', COL[4])] }),
-        ...items.map((item, i) => new docx_1.TableRow({ children: [
-                dCell(item.numero, COL[0], { shade: i % 2 === 1, center: true }),
-                dCell(item.question, COL[1], { shade: i % 2 === 1 }),
-                dCell(rL(item.reponse_booleenne), COL[2], { shade: i % 2 === 1, center: true, bold: true, color: rC(item.reponse_booleenne) }),
-                dCell(item.reponse || '—', COL[3], { shade: i % 2 === 1 }),
-                dCell(item.observations || '—', COL[4], { shade: i % 2 === 1 }),
-            ] })),
-    ];
-    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(160)];
-}
-const SECTIONS_CONDUCTEUR = [
-    { key: 'section1_infoGenerales', num: '01', title: 'Informations générales et rôle' },
-    { key: 'section2_processusInitialT1', num: '02', title: 'Processus environnemental et social initial' },
-    { key: 'section3_installationT2', num: '03', title: 'Installation et organisation du chantier' },
-    { key: 'section4_recrutementT2', num: '04', title: 'Recrutement et conditions de travail' },
-    { key: 'section5_hseT2', num: '05', title: 'Santé et sécurité au travail (HSE)' },
-    { key: 'section6_gestionEnvT2', num: '06', title: 'Gestion environnementale du chantier' },
-    { key: 'section7_sensibilisationT2', num: '07', title: 'Campagnes de sensibilisation VIH/SIDA' },
-    { key: 'section8_mgpT2', num: '08', title: 'Mécanisme de gestion des plaintes (MGP)' },
-    { key: 'section9_fermetureT2', num: '09', title: 'Fermeture et repli du chantier' },
-    { key: 'section10_exploitationT3', num: '10', title: "Exploitation actuelle et retour d'expérience" },
-    { key: 'section11_synthese', num: '11', title: 'Synthèse et recommandations' },
-];
-function exportChecklistConducteurWord(data) {
-    return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j;
-        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        const doc = new docx_1.Document({
-            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
-            styles: {
-                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
-                paragraphStyles: [
-                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
-                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
-                ],
-            },
-            sections: [
-                {
-                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
-                    children: [
-                        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'CHECKLIST CONDUCTEUR', bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'DES TRAVAUX', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-                        new docx_1.Table({
-                            width: { size: 7000, type: docx_1.WidthType.DXA },
-                            columnWidths: [2800, 4200],
-                            rows: [
-                                ['Sous-projet', (_a = data.subprojet) !== null && _a !== void 0 ? _a : '—'],
-                                ['Auditeur', (_b = data.auditeur) !== null && _b !== void 0 ? _b : '—'],
-                                ['Entreprise', (_c = data.entreprise) !== null && _c !== void 0 ? _c : '—'],
-                                ['Personne rencontrée', (_d = data.personne_rencontree) !== null && _d !== void 0 ? _d : '—'],
-                                ['Fonction', (_e = data.fonction) !== null && _e !== void 0 ? _e : '—'],
-                                ['Date', data.date ? new Date(data.date).toLocaleDateString('fr-FR') : '—'],
-                            ].map(([label, val], i) => new docx_1.TableRow({ children: [
-                                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
-                                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
-                                ] })),
-                        }),
+                        ...buildFieldInspectionSection(data),
                         pageBreak(),
-                    ],
-                },
-                {
-                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
-                    headers: { default: buildHeader('CHECKLIST CONDUCTEUR DES TRAVAUX') },
-                    footers: { default: buildFooter(generatedAt) },
-                    children: [
-                        ...subTitle("Informations de l'entretien"),
-                        kvParagraph('Contact', (_f = data.contact) !== null && _f !== void 0 ? _f : '—'),
-                        kvParagraph("Durée de l'entretien", (_g = data.duree_entretien) !== null && _g !== void 0 ? _g : '—'),
-                        kvParagraph('Lieu', (_h = data.lieu) !== null && _h !== void 0 ? _h : '—'),
-                        spacer(240),
-                        ...SECTIONS_CONDUCTEUR.flatMap(s => {
-                            const items = data[s.key];
-                            if (!(items === null || items === void 0 ? void 0 : items.length))
-                                return [];
-                            return [...sectionTitle(s.num, s.title), ...buildQuestionTableConducteur(items)];
-                        }),
-                        ...sectionTitle('12', 'Commentaires libres'),
-                        new docx_1.Paragraph({
-                            spacing: { after: 160 },
-                            border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } },
-                            indent: { left: 280 },
-                            children: [new docx_1.TextRun({ text: data.commentaires_libres || '—', size: 20, color: C.text, font: 'Calibri', italics: true })],
-                        }),
-                        spacer(240),
-                        ...sectionTitle('13', 'Signature'),
-                        kvParagraph("Signature de l'auditeur", (_j = data.signature_auditeur) !== null && _j !== void 0 ? _j : '—'),
-                        spacer(240),
+                        ...buildStakeholderInterviewSection(data),
+                        pageBreak(),
+                        ...buildGenderAssessmentSection(data),
+                        pageBreak(),
+                        ...buildComplaintMechanismSection(data),
+                        pageBreak(),
+                        ...buildQuickSynthesis(data),
+                        ...buildGeneralConclusion(),
                     ],
                 },
             ],
@@ -722,155 +938,254 @@ function exportChecklistConducteurWord(data) {
         return docx_1.Packer.toBuffer(doc);
     });
 }
-// =============================================================================
-// 4. EXPORT GUIDE D'ENTRETIEN
-// =============================================================================
-function buildThemeTable(theme, showNuisances = false) {
-    var _a;
-    const questions = (_a = theme === null || theme === void 0 ? void 0 : theme.questions) !== null && _a !== void 0 ? _a : [];
-    if (!questions.length)
-        return [];
-    const COL = showNuisances ? [600, 3200, 2000, 2000, 1838] : [600, 4000, 2500, 2538];
-    const headers = showNuisances
-        ? ['N°', 'Question', 'Réponse', 'Nuisances observées', 'Notes']
-        : ['N°', 'Question', 'Réponse', 'Notes'];
-    const rows = [
-        new docx_1.TableRow({ tableHeader: true, children: headers.map((h, i) => hCell(h, COL[i], i === 0 || i === 2)) }),
-        ...questions.map((q, i) => {
-            var _a, _b, _c, _d, _e;
-            const shade = i % 2 === 1;
-            const notes = (_b = (_a = q.observations) !== null && _a !== void 0 ? _a : q.notes) !== null && _b !== void 0 ? _b : '—';
-            let nuisancesText = '—';
-            if (showNuisances) {
-                const n = (_c = q.nuisancesObservees) !== null && _c !== void 0 ? _c : {
-                    poussiere: q.nuisance_poussiere,
-                    bruit: q.nuisance_bruit,
-                    circulation: q.nuisance_circulation,
-                    odeurs: q.nuisance_odeurs,
-                    dechets: q.nuisance_dechets,
-                };
-                nuisancesText = [
-                    n.poussiere && '✓ Poussière',
-                    n.bruit && '✓ Bruit',
-                    n.circulation && '✓ Circulation',
-                    n.odeurs && '✓ Odeurs',
-                    n.dechets && '✓ Déchets',
-                ].filter(Boolean).join(', ') || 'Aucune';
-            }
-            if (showNuisances) {
-                return new docx_1.TableRow({ children: [
-                        dCell((_d = q.questionId) !== null && _d !== void 0 ? _d : q.question_id, COL[0], { shade, center: true }),
-                        dCell(q.question, COL[1], { shade }),
-                        dCell(q.reponse || '—', COL[2], { shade }),
-                        dCell(nuisancesText, COL[3], { shade }),
-                        dCell(notes, COL[4], { shade }),
-                    ] });
-            }
-            return new docx_1.TableRow({ children: [
-                    dCell((_e = q.questionId) !== null && _e !== void 0 ? _e : q.question_id, COL[0], { shade, center: true }),
-                    dCell(q.question, COL[1], { shade }),
-                    dCell(q.reponse || '—', COL[2], { shade }),
-                    dCell(notes, COL[3], { shade }),
-                ] });
-        }),
-    ];
-    return [new docx_1.Table({ width: { size: TW, type: docx_1.WidthType.DXA }, columnWidths: COL, rows }), spacer(200)];
-}
-function exportGuideEntretienWord(data) {
+/**
+ * Export un guide d'entretien seul
+ */
+function exportGuideWord(data, projectName, projectLocation, auditors) {
     return __awaiter(this, void 0, void 0, function* () {
-        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k;
         const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
-        const guideType = (_a = data.guide_type) !== null && _a !== void 0 ? _a : '';
-        const isRiverains = guideType === 'riverains_communaute';
-        const guideLabels = {
-            autorites_locales: 'Autorités Locales',
-            riverains_communaute: 'Riverains / Communauté',
-            travailleurs_chantier: 'Travailleurs du Chantier',
-            maitrise_ouvrage_entreprise: "Maîtrise d'Ouvrage / Entreprise",
-            direction_cfpt: 'Direction du CFPT',
-        };
-        const infoRows = [
-            ['Sous-projet', (_b = data.subprojet) !== null && _b !== void 0 ? _b : '—'],
-            ['Type de guide', (_c = guideLabels[guideType]) !== null && _c !== void 0 ? _c : guideType],
-            ['Nom', (_d = data.gi_nom) !== null && _d !== void 0 ? _d : '—'],
-            ['Fonction', (_e = data.gi_fonction) !== null && _e !== void 0 ? _e : '—'],
-            ['Contact', (_f = data.gi_contact) !== null && _f !== void 0 ? _f : '—'],
-            ['Date', data.gi_date ? new Date(data.gi_date).toLocaleDateString('fr-FR') : '—'],
-            ['Lieu', (_g = data.gi_lieu) !== null && _g !== void 0 ? _g : '—'],
-            ...(data.gi_type_entretien ? [['Type entretien', data.gi_type_entretien === 'focus_group' ? 'Focus Group' : 'Individuel']] : []),
-            ...(data.gi_employeur ? [['Employeur', data.gi_employeur]] : []),
-            ...(data.gi_type_contrat ? [['Type contrat', data.gi_type_contrat.toUpperCase()]] : []),
+        const projectDate = data.gi_date ? new Date(data.gi_date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+        const sectionsList = [
+            'INTRODUCTION',
+            'GUIDE D\'ENTRETIEN',
+            'CONCLUSION GÉNÉRALE',
         ];
-        const theme2Titles = {
-            autorites_locales: 'Perception du projet',
-            riverains_communaute: 'Nuisances des travaux',
-            travailleurs_chantier: 'EPI et santé sécurité',
-            maitrise_ouvrage_entreprise: 'Gestion E&S',
-            direction_cfpt: "Accessibilité et sécurité de l'ERP",
-        };
-        const theme3Titles = {
-            autorites_locales: 'Gestion des plaintes',
-            riverains_communaute: 'Gestion des plaintes',
-            travailleurs_chantier: "Conditions d'emploi et MGP",
-            maitrise_ouvrage_entreprise: 'Gestion des travailleurs',
-            direction_cfpt: 'Gestion quotidienne du CFPT',
-        };
-        const theme4Titles = {
-            riverains_communaute: 'Attentes pour le futur',
-            maitrise_ouvrage_entreprise: 'Relations riverains et MGP',
-        };
         const doc = new docx_1.Document({
-            numbering: { config: [{ reference: 'bullets', levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] }] },
+            numbering: {
+                config: [{
+                        reference: 'bullet-list',
+                        levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
+                    }],
+            },
             styles: {
                 default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
                 paragraphStyles: [
-                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 30, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 60 }, outlineLevel: 0 } },
-                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 22, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 32, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 120 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 24, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
                 ],
             },
             sections: [
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
-                    children: [
-                        new docx_1.Paragraph({ spacing: { before: 1800, after: 0 }, children: [] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: "GUIDE D'ENTRETIEN", bold: true, size: 64, color: C.primary, font: 'Calibri' })] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, spacing: { after: 80 }, children: [new docx_1.TextRun({ text: 'PARTIES PRENANTES', bold: true, size: 48, color: C.secondary, font: 'Calibri' })] }),
-                        new docx_1.Paragraph({ alignment: docx_1.AlignmentType.CENTER, border: { bottom: { style: docx_1.BorderStyle.SINGLE, size: 16, color: C.accent, space: 1 } }, spacing: { after: 600 }, children: [] }),
-                        new docx_1.Table({
-                            width: { size: 7000, type: docx_1.WidthType.DXA },
-                            columnWidths: [2800, 4200],
-                            rows: infoRows.map(([label, val], i) => new docx_1.TableRow({ children: [
-                                    new docx_1.TableCell({ width: { size: 2800, type: docx_1.WidthType.DXA }, shading: { fill: C.primary }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: label, bold: true, color: C.white, size: 20, font: 'Calibri' })] })] }),
-                                    new docx_1.TableCell({ width: { size: 4200, type: docx_1.WidthType.DXA }, shading: { fill: i % 2 === 0 ? C.lightGray : C.white }, margins: CELL_MARGINS, children: [new docx_1.Paragraph({ children: [new docx_1.TextRun({ text: val, size: 20, color: C.text, font: 'Calibri' })] })] }),
-                                ] })),
-                        }),
-                        pageBreak(),
-                    ],
+                    children: buildCoverPage(projectName, projectDate, projectLocation, auditors, 'guide'),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildTableOfContents(sectionsList),
                 },
                 {
                     properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
-                    headers: { default: buildHeader("GUIDE D'ENTRETIEN") },
+                    headers: { default: buildHeader(projectName) },
                     footers: { default: buildFooter(generatedAt) },
                     children: [
-                        ...sectionTitle('01', guideType === 'autorites_locales' ? 'Statut foncier' : 'Information et perception'),
-                        ...buildThemeTable(data.theme1, false),
-                        ...sectionTitle('02', (_h = theme2Titles[guideType]) !== null && _h !== void 0 ? _h : 'Thème 2'),
-                        ...buildThemeTable(data.theme2, isRiverains),
-                        ...sectionTitle('03', (_j = theme3Titles[guideType]) !== null && _j !== void 0 ? _j : 'Thème 3'),
-                        ...buildThemeTable(data.theme3, false),
-                        ...(data.theme4 ? [
-                            ...sectionTitle('04', (_k = theme4Titles[guideType]) !== null && _k !== void 0 ? _k : 'Thème 4'),
-                            ...buildThemeTable(data.theme4, false),
-                        ] : []),
-                        ...sectionTitle(data.theme4 ? '05' : '04', "Notes de l'auditeur"),
-                        new docx_1.Paragraph({
-                            spacing: { after: 160 },
-                            border: { left: { style: docx_1.BorderStyle.SINGLE, size: 12, color: C.accent, space: 20 } },
-                            indent: { left: 280 },
-                            children: [new docx_1.TextRun({ text: data.notes_auditeur || '—', size: 20, color: C.text, font: 'Calibri', italics: true })],
-                        }),
-                        spacer(240),
+                        ...buildIntroduction(),
+                        ...buildGuideEntretienSection(data),
+                        pageBreak(),
+                        ...buildGeneralConclusion(),
                     ],
+                },
+            ],
+        });
+        return docx_1.Packer.toBuffer(doc);
+    });
+}
+/**
+ * Export une checklist audit seule
+ */
+function exportAuditWord(data, projectName, projectLocation, auditors) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const projectDate = data.date ? new Date(data.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+        const sectionsList = [
+            'INTRODUCTION',
+            'CHECKLIST D\'AUDIT',
+            'CONCLUSION GÉNÉRALE',
+        ];
+        const doc = new docx_1.Document({
+            numbering: {
+                config: [{
+                        reference: 'bullet-list',
+                        levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
+                    }],
+            },
+            styles: {
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
+                paragraphStyles: [
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 32, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 120 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 24, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                ],
+            },
+            sections: [
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildCoverPage(projectName, projectDate, projectLocation, auditors, 'audit'),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildTableOfContents(sectionsList),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader(projectName) },
+                    footers: { default: buildFooter(generatedAt) },
+                    children: [
+                        ...buildIntroduction(),
+                        ...buildAuditSection(data),
+                        pageBreak(),
+                        ...buildGeneralConclusion(),
+                    ],
+                },
+            ],
+        });
+        return docx_1.Packer.toBuffer(doc);
+    });
+}
+/**
+ * Export une checklist conducteur seule
+ */
+function exportConducteurWord(data, projectName, projectLocation, auditors) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const projectDate = data.date ? new Date(data.date).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR');
+        const sectionsList = [
+            'INTRODUCTION',
+            'CHECKLIST CONDUCTEUR',
+            'CONCLUSION GÉNÉRALE',
+        ];
+        const doc = new docx_1.Document({
+            numbering: {
+                config: [{
+                        reference: 'bullet-list',
+                        levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
+                    }],
+            },
+            styles: {
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
+                paragraphStyles: [
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 32, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 120 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 24, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                ],
+            },
+            sections: [
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildCoverPage(projectName, projectDate, projectLocation, auditors, 'conducteur'),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildTableOfContents(sectionsList),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader(projectName) },
+                    footers: { default: buildFooter(generatedAt) },
+                    children: [
+                        ...buildIntroduction(),
+                        ...buildConducteurSection(data),
+                        pageBreak(),
+                        ...buildGeneralConclusion(),
+                    ],
+                },
+            ],
+        });
+        return docx_1.Packer.toBuffer(doc);
+    });
+}
+/**
+ * Export tout-en-un : tous les formulaires d'un projet
+ */
+function exportAllFormsWord(projectName, projectLocation, auditors, apesData, guideData, auditData, conducteurData) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const generatedAt = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
+        const projectDate = new Date().toLocaleDateString('fr-FR');
+        const sectionsList = [
+            'INTRODUCTION',
+            ...(apesData ? ['RAPPORT APES (COMPLET)'] : []),
+            ...(guideData && guideData.length > 0 ? ['GUIDES D\'ENTRETIEN'] : []),
+            ...(auditData && auditData.length > 0 ? ['CHECKLISTS D\'AUDIT'] : []),
+            ...(conducteurData && conducteurData.length > 0 ? ['CHECKLISTS CONDUCTEUR'] : []),
+            'CONCLUSION GÉNÉRALE',
+        ];
+        const children = [
+            ...buildIntroduction(),
+        ];
+        // APES complet
+        if (apesData) {
+            children.push(sectionTitle('RAPPORT APES (COMPLET)'));
+            children.push(...buildDocumentReviewSection(apesData));
+            children.push(pageBreak());
+            children.push(...buildFieldInspectionSection(apesData));
+            children.push(pageBreak());
+            children.push(...buildStakeholderInterviewSection(apesData));
+            children.push(pageBreak());
+            children.push(...buildGenderAssessmentSection(apesData));
+            children.push(pageBreak());
+            children.push(...buildComplaintMechanismSection(apesData));
+            children.push(pageBreak());
+        }
+        // Guides d'entretien
+        if (guideData && guideData.length > 0) {
+            children.push(sectionTitle('GUIDES D\'ENTRETIEN'));
+            for (let i = 0; i < guideData.length; i++) {
+                children.push(subTitle(`Guide ${i + 1}`));
+                children.push(...buildGuideEntretienSection(guideData[i]));
+                if (i < guideData.length - 1)
+                    children.push(pageBreak());
+            }
+            children.push(pageBreak());
+        }
+        // Checklists audit
+        if (auditData && auditData.length > 0) {
+            children.push(sectionTitle('CHECKLISTS D\'AUDIT'));
+            for (let i = 0; i < auditData.length; i++) {
+                children.push(subTitle(`Audit ${i + 1}`));
+                children.push(...buildAuditSection(auditData[i]));
+                if (i < auditData.length - 1)
+                    children.push(pageBreak());
+            }
+            children.push(pageBreak());
+        }
+        // Checklists conducteur
+        if (conducteurData && conducteurData.length > 0) {
+            children.push(sectionTitle('CHECKLISTS CONDUCTEUR'));
+            for (let i = 0; i < conducteurData.length; i++) {
+                children.push(subTitle(`Conducteur ${i + 1}`));
+                children.push(...buildConducteurSection(conducteurData[i]));
+                if (i < conducteurData.length - 1)
+                    children.push(pageBreak());
+            }
+            children.push(pageBreak());
+        }
+        // Conclusion générale
+        children.push(...buildGeneralConclusion());
+        const doc = new docx_1.Document({
+            numbering: {
+                config: [{
+                        reference: 'bullet-list',
+                        levels: [{ level: 0, format: docx_1.LevelFormat.BULLET, text: '•', alignment: docx_1.AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }],
+                    }],
+            },
+            styles: {
+                default: { document: { run: { font: 'Calibri', size: 20, color: C.text } } },
+                paragraphStyles: [
+                    { id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 32, bold: true, font: 'Calibri', color: C.primary }, paragraph: { spacing: { before: 480, after: 120 }, outlineLevel: 0 } },
+                    { id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true, run: { size: 24, bold: true, font: 'Calibri', color: C.secondary }, paragraph: { spacing: { before: 280, after: 80 }, outlineLevel: 1 } },
+                ],
+            },
+            sections: [
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildCoverPage(projectName, projectDate, projectLocation, auditors, 'global'),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: PAGE.margin } },
+                    children: buildTableOfContents(sectionsList),
+                },
+                {
+                    properties: { page: { size: { width: PAGE.width, height: PAGE.height }, margin: Object.assign(Object.assign({}, PAGE.margin), { top: 1440, bottom: 1440 }) } },
+                    headers: { default: buildHeader(projectName) },
+                    footers: { default: buildFooter(generatedAt) },
+                    children,
                 },
             ],
         });

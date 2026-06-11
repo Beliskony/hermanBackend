@@ -7,6 +7,8 @@ import pollRouter from "./routes/poll.route";
 import formRouter from "./routes/form.route";
 import SendContactMailrouter from "./routes/sendmail.route";
 import wordsRouter from "./routes/words.route";
+import adminRouter from "./routes/admin.route";
+import ShareLinkRouter from "./routes/ShareLink.route";
 
 dotenv.config();
 
@@ -65,6 +67,9 @@ app.use(pollRouter);
 app.use(formRouter);
 app.use(wordsRouter);
 app.use(SendContactMailrouter);
+app.use(adminRouter);
+app.use(ShareLinkRouter);
+
 
 // ✅ 6. 404 handler
 app.use((req, res) => {

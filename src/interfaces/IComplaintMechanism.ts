@@ -1,17 +1,19 @@
 // src/interfaces/IComplaintMechanism.ts
 export interface IComplaintMechanism {
   id: string;                       // CHAR(16)
-  form_id: string;                  // CHAR(16) FK → form_data.id
-  documentary_basis: Record<string, {    // JSON
+  project_id: string;               // CHAR(16) FK → projects.id
+  documentary_basis: Record<string, {
     finding: string;
     evidence: string;
     evaluation: string;
   }>;
-  key_criteria: Record<string, {        // JSON
+  key_criteria: Record<string, {
     findings: string;
     evaluation: string;
   }>;
-  global_conclusion: string;        // TEXT NOT NULL
+  global_conclusion: string;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface IComplaintStrength {
@@ -38,4 +40,11 @@ export interface IComplaintRecommendation {
   responsible: string;
   deadline: string;
   sort_order: number;
+}
+
+export interface ICreateComplaintMechanism {
+  project_id: string;
+  documentary_basis: Record<string, any>;
+  key_criteria: Record<string, any>;
+  global_conclusion: string;
 }

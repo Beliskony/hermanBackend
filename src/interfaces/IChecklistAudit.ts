@@ -3,6 +3,7 @@ export type Conformite = 'O' | 'N' | 'P' | 'S.O.';
 
 export interface IChecklistAudit {
   id: string;                       // CHAR(16)
+  project_id: string;               // CHAR(16) FK → projects.id (AJOUTÉ)
   subprojet: string;                // VARCHAR(255) NOT NULL
   auditeurs: string;                // VARCHAR(500) NOT NULL
   date: Date;                       // DATE NOT NULL
@@ -17,8 +18,8 @@ export interface IChecklistAuditCritere {
   id: string;
   checklist_audit_id: string;
   section_key: string;              // VARCHAR(60)
-  numero: string;                   // VARCHAR(20)
-  critere: string;
+  numero: string;                   // VARCHAR(20) - correspond à question_id
+  critere: string;                  // Remplacé par la question_text du template
   sources_methode: string | null;
   conformite: Conformite;
   observations: string | null;
@@ -26,12 +27,12 @@ export interface IChecklistAuditCritere {
   sort_order: number;
 }
 
-export interface IChecklistAuditDocument {
-  id: string;
-  checklist_audit_id: string;
-  numero: string;
-  document: string;
-  disponible: Conformite;
-  commentaires: string | null;
-  sort_order: number;
+export interface ICreateChecklistAudit {
+  project_id: string;
+  subprojet: string;
+  auditeurs: string;
+  date: Date;
+  synth_nb_nc_majeures?: number;
+  synth_domaines_critiques?: string;
+  synth_signature_auditeur?: string;
 }
