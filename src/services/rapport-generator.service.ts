@@ -2,6 +2,7 @@
 import { pool } from '../config/databaseConnect';
 import {
   exportAPESWord,
+  exportSingleAPESWord,
   exportGuideWord,
   exportAuditWord,
   exportConducteurWord,
@@ -26,13 +27,13 @@ import { IProject } from '../interfaces/IProject';
 
 interface FormattedAPESData {
   project_date: Date;
-  documentReview: {
+  document_review: {
     documents_presents: Record<string, boolean>;
     documents_analysis: Record<string, any>;
     documents_manquants: string | null;
     autres_documents: string | null;
   } | null;
-  fieldInspection: {
+  field_inspection: {
     project_name: string;
     date: Date;
     auditors: string;
@@ -44,7 +45,7 @@ interface FormattedAPESData {
     health_safety: Record<string, any>;
     community: Record<string, any>;
   } | null;
-  stakeholderInterview: {
+  stakeholder_interview: {
     date: Date;
     location: string;
     duration: string;
@@ -59,12 +60,12 @@ interface FormattedAPESData {
     eval_relevance: number;
     eval_climate: number;
   } | null;
-  genderAssessment: {
+   gender_assessment: {
     objectives: Array<{ description: string; status: string }>;
     impacts: Array<{ impact_type: string; impact: string; women: string; men: string; vulnerable: string }>;
     recommendations: Array<{ recommendation: string; priority: string; responsible: string; deadline: string }>;
   } | null;
-  complaintMechanism: {
+  complaint_mechanism: {
     documentary_basis: Record<string, any>;
     key_criteria: Record<string, any>;
     global_conclusion: string;
@@ -159,7 +160,7 @@ export class RapportGeneratorService {
    * Génère un rapport APES complet à partir d'un formulaire soumis
    */
   async genererRapportAPES(formId: string): Promise<Buffer> {
-    console.log(`📄 Génération du rapport APES pour le formulaire: ${formId}`);
+    console.log(`Génération du rapport APES pour le formulaire: ${formId}`);
 
     const form = await this.getAPESFormWithDetails(formId);
     if (!form) {
@@ -206,13 +207,13 @@ export class RapportGeneratorService {
     // CORRECTION : Utiliser l'interface du haut (pas de redéfinition)
     const formattedData: FormattedAPESData = {
       project_date: new Date(),
-      documentReview: documentReview ? {
+      document_review: documentReview ? {
         documents_presents: documentReview.documents_presents,
         documents_analysis: documentReview.documents_analysis,
         documents_manquants: documentReview.documents_manquants,
         autres_documents: documentReview.autres_documents,
       } : null,
-      fieldInspection: fieldInspection ? {
+      field_inspection: fieldInspection ? {
         project_name: fieldInspection.project_name,
         date: fieldInspection.date,
         auditors: fieldInspection.auditors,
@@ -224,7 +225,7 @@ export class RapportGeneratorService {
         health_safety: fieldInspection.health_safety,
         community: fieldInspection.community,
       } : null,
-      stakeholderInterview: stakeholderInterview ? {
+      stakeholder_interview: stakeholderInterview ? {
         date: stakeholderInterview.date,
         location: stakeholderInterview.location,
         duration: stakeholderInterview.duration,
@@ -239,8 +240,8 @@ export class RapportGeneratorService {
         eval_relevance: stakeholderInterview.eval_relevance,
         eval_climate: stakeholderInterview.eval_climate,
       } : null,
-      genderAssessment: genderAssessment,
-      complaintMechanism: complaintMechanism ? {
+      gender_assessment: genderAssessment,
+      complaint_mechanism: complaintMechanism ? {
         documentary_basis: complaintMechanism.documentary_basis,
         key_criteria: complaintMechanism.key_criteria,
         global_conclusion: complaintMechanism.global_conclusion,
@@ -250,14 +251,14 @@ export class RapportGeneratorService {
       } : null,
     };
 
-    const buffer = await exportAPESWord(
-      formattedData,
+    const buffer = await exportSingleAPESWord(
+      formId,
       project.name,
       project.location || 'Non spécifié',
       'Auditeur'
     );
 
-    console.log(`✅ Rapport APES généré avec succès`);
+    console.log(`Rapport APES généré avec succès`);
     return buffer;
   }
 
@@ -1020,51 +1021,55 @@ export class RapportGeneratorService {
       };
     }
 
-    return {
-      project_date: new Date(),
-      documentReview: documentReview ? {
-        documents_presents: documentReview.documents_presents,
-        documents_analysis: documentReview.documents_analysis,
-        documents_manquants: documentReview.documents_manquants,
-        autres_documents: documentReview.autres_documents,
-      } : null,
-      fieldInspection: fieldInspection ? {
-        project_name: fieldInspection.project_name,
-        date: fieldInspection.date,
-        auditors: fieldInspection.auditors,
-        accompaniers: fieldInspection.accompaniers,
-        zones: fieldInspection.zones,
-        water_management: fieldInspection.water_management,
-        waste_management: fieldInspection.waste_management,
-        emissions: fieldInspection.emissions,
-        health_safety: fieldInspection.health_safety,
-        community: fieldInspection.community,
-      } : null,
-      stakeholderInterview: stakeholderInterview ? {
-        date: stakeholderInterview.date,
-        location: stakeholderInterview.location,
-        duration: stakeholderInterview.duration,
-        stakeholder_type: stakeholderInterview.stakeholder_type,
-        profile_name: stakeholderInterview.profile_name,
-        profile_function: stakeholderInterview.profile_function,
-        profile_gender: stakeholderInterview.profile_gender,
-        profile_age_range: stakeholderInterview.profile_age_range,
-        responses: stakeholderInterview.responses,
-        eval_quality: stakeholderInterview.eval_quality,
-        eval_frankness: stakeholderInterview.eval_frankness,
-        eval_relevance: stakeholderInterview.eval_relevance,
-        eval_climate: stakeholderInterview.eval_climate,
-      } : null,
-      genderAssessment: genderAssessment,
-      complaintMechanism: complaintMechanism ? {
-        documentary_basis: complaintMechanism.documentary_basis,
-        key_criteria: complaintMechanism.key_criteria,
-        global_conclusion: complaintMechanism.global_conclusion,
-        strengths: complaintMechanism.strengths,
-        weaknesses: complaintMechanism.weaknesses,
-        recommendations: complaintMechanism.recommendations,
-      } : null,
-    };
+  return {
+    project_date: new Date(),
+    document_review: documentReview ? {
+      documents_presents: documentReview.documents_presents,
+      documents_analysis: documentReview.documents_analysis,
+      documents_manquants: documentReview.documents_manquants,
+      autres_documents: documentReview.autres_documents,
+    } : null,
+    field_inspection: fieldInspection ? {
+      project_name: fieldInspection.project_name,
+      date: fieldInspection.date,
+      auditors: fieldInspection.auditors,
+      accompaniers: fieldInspection.accompaniers,
+      zones: fieldInspection.zones,
+      water_management: this.formatInspectionItems(fieldInspection.water_management || {}),
+      waste_management: this.formatInspectionItems(fieldInspection.waste_management || {}),
+      emissions: this.formatInspectionItems(fieldInspection.emissions || {}),
+      health_safety: this.formatInspectionItems(fieldInspection.health_safety || {}),
+      community: this.formatInspectionItems(fieldInspection.community || {}),
+    } : null,
+    stakeholder_interview: stakeholderInterview ? {  // ← snake_case
+      date: stakeholderInterview.date,
+      location: stakeholderInterview.location,
+      duration: stakeholderInterview.duration,
+      stakeholder_type: stakeholderInterview.stakeholder_type,
+      profile_name: stakeholderInterview.profile_name,
+      profile_function: stakeholderInterview.profile_function,
+      profile_gender: stakeholderInterview.profile_gender,
+      profile_age_range: stakeholderInterview.profile_age_range,
+      responses: stakeholderInterview.responses,
+      eval_quality: stakeholderInterview.eval_quality,
+      eval_frankness: stakeholderInterview.eval_frankness,
+      eval_relevance: stakeholderInterview.eval_relevance,
+      eval_climate: stakeholderInterview.eval_climate,
+    } : null,
+    gender_assessment: genderAssessment ? {  // ← snake_case
+      objectives: genderAssessment.objectives,
+      impacts: genderAssessment.impacts,
+      recommendations: genderAssessment.recommendations,
+    } : null,
+    complaint_mechanism: complaintMechanism ? {  // ← snake_case
+      documentary_basis: complaintMechanism.documentary_basis,
+      key_criteria: complaintMechanism.key_criteria,
+      global_conclusion: complaintMechanism.global_conclusion,
+      strengths: complaintMechanism.strengths,
+      weaknesses: complaintMechanism.weaknesses,
+      recommendations: complaintMechanism.recommendations,
+    } : null,
+  };
   }
 
   private async buildGuideDataForExport(guideId: string): Promise<FormattedGuideData | null> {
@@ -1153,6 +1158,28 @@ export class RapportGeneratorService {
 
     return formattedData;
   }
+
+  private formatInspectionItems(items: Record<string, any>): Record<string, any> {
+  const formatted: Record<string, any> = {};
+  for (const [key, value] of Object.entries(items)) {
+    if (typeof value === 'object' && value !== null) {
+      // Déjà formaté
+      formatted[key] = {
+        status: value.status || value.conformite || '',
+        observations: value.observations || value.findings || '',
+        risk: value.risk || '',
+      };
+    } else {
+      // Valeur simple -> considérer comme statut
+      formatted[key] = {
+        status: String(value),
+        observations: '',
+        risk: '',
+      };
+    }
+  }
+  return formatted;
+}
 
   private async buildConducteurDataForExport(conducteurId: string): Promise<FormattedConducteurData | null> {
     const conducteur = await this.getChecklistConducteurById(conducteurId);

@@ -10,6 +10,7 @@ export interface IChecklistAudit {
   synth_nb_nc_majeures: number;     // SMALLINT NOT NULL DEFAULT 0
   synth_domaines_critiques: string | null;
   synth_signature_auditeur: string | null;
+  status?: 'draft' | 'submitted' | 'archived';
   created_at: Date;
   updated_at: Date;
 }

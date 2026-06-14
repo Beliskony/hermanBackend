@@ -1,261 +1,177 @@
-// ─────────────────────────────────────────────────────────────────────────────
-//  checklist.service.ts  —  Services complets des checklists (Audit & Conducteur)
-// ─────────────────────────────────────────────────────────────────────────────
+// checklist-audit.service.ts - Version avec procédures stockées
 
 import { pool } from '../../config/databaseConnect';
 import { newId } from '../../utils/id';
-import { BaseRepository, parseJson, Paginated } from './Base_form';
-import type {
-  IChecklistAudit,
-  IChecklistAuditCritere,
-  ICreateChecklistAudit,
-  Conformite,
-} from '../../interfaces/IChecklistAudit';
-import type {
-  IChecklistConducteur,
-  IChecklistConducteurQuestion,
-  ICreateChecklistConducteur,
-  ReponseBooleenne,
-} from '../../interfaces/IChecklistConducteur';
+import { BaseRepository, Paginated } from './Base_form';
+import type { IChecklistAudit, ICreateChecklistAudit, Conformite } from '../../interfaces/IChecklistAudit';
+import type { IChecklistConducteur, ICreateChecklistConducteur, ReponseBooleenne } from '../../interfaces/IChecklistConducteur';
 
-// =============================================================================
-//  CHECKLIST AUDIT SERVICE
-// =============================================================================
-
-export class ChecklistAuditService extends BaseRepository {
-  async create(data: ICreateChecklistAudit & { criteres?: any[] }): Promise<IChecklistAudit> {
-    const id = newId();
-
-    // Démarrer une transaction
-    const connection = await pool.getConnection();
-    await connection.beginTransaction();
-
-    try {
-      // 1. Insérer dans checklist_audit (en-tête) - AVEC LES BONS CHAMPS
-      await connection.query(
-        `
-        INSERT INTO checklist_audit
-          (id, project_id, subprojet, auditeurs, date,
-           synth_nb_nc_majeures, synth_domaines_critiques, synth_signature_auditeur)
-        VALUES (?,?,?,?,?,?,?,?)
-        `,
-        [
-          id,
-          data.project_id,
-          data.subprojet,
-          data.auditeurs,                    // ← auditeurs (pluriel)
-          data.date,
-          data.synth_nb_nc_majeures ?? 0,
-          data.synth_domaines_critiques ?? null,
-          data.synth_signature_auditeur ?? null,
-        ]
-      );
-
-      // 2. Insérer les critères dans checklist_audit_criteres
-      if (data.criteres && data.criteres.length > 0) {
-        for (const c of data.criteres) {
-          const critereId = newId();
-          await connection.query(
-            `
-            INSERT INTO checklist_audit_criteres 
-            (id, checklist_audit_id, section_key, numero, critere, 
-             sources_methode, conformite, observations, risque_non_conformite, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            [
-              critereId,
-              id,
-              c.section_key,
-              c.numero,
-              c.critere,
-              c.sources_methode ?? null,
-              c.conformite ?? 'S.O.',
-              c.observations ?? null,
-              c.risque_non_conformite ?? null,
-              c.sort_order ?? 0
-            ]
-          );
-        }
-      }
-      
-      await connection.commit();
-
-      // Retourner l'objet complet
-      return (await this.getById(id))!;
-      
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-  }
-
-
-async getById(id: string): Promise<(IChecklistAudit & { criteres: IChecklistAuditCritere[] }) | null> {
-  // 1. Récupérer l'en-tête
-  const [header] = await pool.query<any[]>(
-    'SELECT * FROM checklist_audit WHERE id = ?',
-    [id]
-  );
-  if (!header[0]) return null;
-  
-  // 2. Récupérer les critères
-  const [criteres] = await pool.query<any[]>(
-    'SELECT * FROM checklist_audit_criteres WHERE checklist_audit_id = ? ORDER BY section_key, sort_order',
-    [id]
-  );
-  
-  // 3. Retourner l'objet complet
-  const mapped = this._mapAudit(header[0]);
-  return {
-    ...mapped,
-    criteres: criteres.map(c => ({
-      id: c.id,
-      checklist_audit_id: c.checklist_audit_id,
-      section_key: c.section_key,
-      numero: c.numero,
-      critere: c.critere,
-      sources_methode: c.sources_methode ?? null,
-      conformite: c.conformite as Conformite,
-      observations: c.observations ?? null,
-      risque_non_conformite: c.risque_non_conformite ?? null,
-      sort_order: c.sort_order,
-    }))
-  };
+export interface IChecklistAuditCritere {
+  id: string;
+  checklist_audit_id: string;
+  section_key: string;
+  numero: string;
+  critere: string;
+  sources_methode: string | null;
+  conformite: Conformite;
+  observations: string | null;
+  risque_non_conformite: string | null;
+  sort_order: number;
 }
 
+export interface IChecklistAuditComplet extends IChecklistAudit {
+  criteres: IChecklistAuditCritere[];
+}
+
+export class ChecklistAuditService extends BaseRepository {
+  
+  /**
+   * Créer un audit complet
+   */
+  async create(data: ICreateChecklistAudit & { criteres?: any[] }): Promise<IChecklistAuditComplet> {
+    const id = newId();
+    const criteresJson = data.criteres ? JSON.stringify(data.criteres) : null;
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_create_checklist_audit(?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        id,
+        data.project_id,
+        data.subprojet,
+        data.auditeurs,
+        data.date,
+        data.synth_nb_nc_majeures ?? 0,
+        data.synth_domaines_critiques ?? null,
+        data.synth_signature_auditeur ?? null,
+        criteresJson
+      ]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la création de l'audit ${id}`);
+    }
+    return result;
+  }
+
+  /**
+   * Récupérer un audit complet par son ID
+   */
+  async getById(id: string): Promise<IChecklistAuditComplet | null> {
+    const [results] = await pool.query<any[]>(
+      'CALL sp_get_checklist_audit_complet(?)',
+      [id]
+    );
+    
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
+    }
+    
+    return this._formatProcedureResult(results);
+  }
+
+  /**
+   * Mettre à jour les réponses d'un audit
+   */
+  async updateReponses(auditId: string, criteres: any[]): Promise<IChecklistAuditComplet> {
+    const criteresJson = JSON.stringify(criteres);
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_update_checklist_audit_reponses(?, ?)',
+      [auditId, criteresJson]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la mise à jour de l'audit ${auditId}`);
+    }
+    return result;
+  }
+
+  /**
+   * Soumettre un audit
+   */
+  async submit(id: string): Promise<IChecklistAuditComplet> {
+    const [results] = await pool.query<any[]>(
+      'CALL sp_submit_checklist_audit(?)',
+      [id]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la soumission de l'audit ${id}`);
+    }
+    return result;
+  }
+
+  /**
+   * Lister tous les audits d'un projet
+   */
   async getAll(
     projectId?: string,
-    page = 1,
-    limit = 10
+    page: number = 1,
+    limit: number = 10
   ): Promise<Paginated<IChecklistAudit>> {
+    const offset = (page - 1) * limit;
+    
     const params: unknown[] = [];
     let where = '1=1';
-
+    
     if (projectId) {
       where = 'project_id = ?';
       params.push(projectId);
     }
-
-    const offset = (page - 1) * limit;
-
+    
     const [rows] = await pool.query<any[]>(
       `SELECT * FROM checklist_audit WHERE ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     );
     const total = await this.countRows('checklist_audit', where, params);
-
+    
     return {
-      items: rows.map(r => this._mapAudit(r)),
+      items: rows.map((r: any) => this._mapAudit(r)),
       total,
       page,
       totalPages: Math.ceil(total / limit),
     };
   }
 
-  async update(
-    id: string,
-    data: Partial<ICreateChecklistAudit>
-  ): Promise<IChecklistAudit | null> {
-    const existing = await this.getById(id);
-    if (!existing) throw new Error('Audit introuvable');
+  // ===========================================================================
+  //  MÉTHODES PRIVÉES
+  // ===========================================================================
 
-    const fields: string[] = [];
-    const values: unknown[] = [];
-
-    const updatableFields = [
-      'subprojet',
-      'auditeurs',
-      'date',
-      'synth_nb_nc_majeures',
-      'synth_domaines_critiques',
-      'synth_signature_auditeur',
-    ] as const;
-
-    for (const field of updatableFields) {
-      if (data[field] !== undefined) {
-        fields.push(`${field} = ?`);
-        values.push(data[field]);
-      }
+  private _formatProcedureResult(results: any[]): IChecklistAuditComplet | null {
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
     }
-
-    if (fields.length) {
-      await pool.query(
-        `UPDATE checklist_audit SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-        [...values, id]
-      );
-    }
-
-    return this.getById(id);
-  }
-
-  async getCriteres(auditId: string): Promise<IChecklistAuditCritere[]> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM checklist_audit_criteres WHERE checklist_audit_id = ? ORDER BY section_key, sort_order',
-      [auditId]
-    );
-    return rows.map(r => ({
-      id: r.id,
-      checklist_audit_id: r.checklist_audit_id,
-      section_key: r.section_key,
-      numero: r.numero,
-      critere: r.critere,
-      sources_methode: r.sources_methode ?? null,
-      conformite: r.conformite as Conformite,
-      observations: r.observations ?? null,
-      risque_non_conformite: r.risque_non_conformite ?? null,
-      sort_order: r.sort_order,
-    }));
-  }
-
-  async updateCritere(
-    auditId: string,
-    critereId: string,
-    data: Partial<IChecklistAuditCritere>
-  ): Promise<IChecklistAuditCritere | null> {
-    const fields: string[] = [];
-    const values: unknown[] = [];
-
-    const updatableFields = [
-      'conformite',
-      'observations',
-      'risque_non_conformite',
-      'sources_methode',
-    ] as const;
-
-    for (const field of updatableFields) {
-      if (data[field] !== undefined) {
-        fields.push(`${field} = ?`);
-        values.push(data[field]);
-      }
-    }
-
-    if (fields.length) {
-      await pool.query(
-        `UPDATE checklist_audit_criteres SET ${fields.join(', ')} WHERE id = ? AND checklist_audit_id = ?`,
-        [...values, critereId, auditId]
-      );
-    }
-
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM checklist_audit_criteres WHERE id = ?',
-      [critereId]
-    );
-    if (!rows.length) return null;
-
-    const r = rows[0];
+    
+    const header = results[0][0];
+    const criteres = results[1] || [];
+    
     return {
-      id: r.id,
-      checklist_audit_id: r.checklist_audit_id,
-      section_key: r.section_key,
-      numero: r.numero,
-      critere: r.critere,
-      sources_methode: r.sources_methode ?? null,
-      conformite: r.conformite as Conformite,
-      observations: r.observations ?? null,
-      risque_non_conformite: r.risque_non_conformite ?? null,
-      sort_order: r.sort_order,
+      id: header.id,
+      project_id: header.project_id,
+      subprojet: header.subprojet,
+      auditeurs: header.auditeurs,
+      date: new Date(header.date),
+      synth_nb_nc_majeures: header.synth_nb_nc_majeures,
+      synth_domaines_critiques: header.synth_domaines_critiques ?? null,
+      synth_signature_auditeur: header.synth_signature_auditeur ?? null,
+      status: header.status ?? 'submitted',
+      created_at: new Date(header.created_at),
+      updated_at: new Date(header.updated_at),
+      criteres: criteres.map((c: any) => ({
+        id: c.numero,
+        checklist_audit_id: header.id,
+        section_key: c.section_key,
+        numero: c.numero,
+        critere: c.critere,
+        sources_methode: c.sources_methode ?? null,
+        conformite: c.conformite as Conformite,
+        observations: c.observations ?? null,
+        risque_non_conformite: c.risque_non_conformite ?? null,
+        sort_order: c.sort_order,
+      }))
     };
   }
 
@@ -275,299 +191,184 @@ async getById(id: string): Promise<(IChecklistAudit & { criteres: IChecklistAudi
   }
 }
 
-// =============================================================================
-//  CHECKLIST CONDUCTEUR SERVICE
-// =============================================================================
+export const checklistAuditService = new ChecklistAuditService();
+
+
+
+
+
+
+
+
+
+export interface IChecklistConducteurQuestion {
+  id: string;
+  checklist_conducteur_id: string;
+  section_key: string;
+  numero: string;
+  question: string;
+  reponse: string | null;
+  reponse_booleenne: ReponseBooleenne | null;
+  observations: string | null;
+  sort_order: number;
+}
+
+export interface IChecklistConducteurComplet extends IChecklistConducteur {
+  questions: IChecklistConducteurQuestion[];
+}
 
 export class ChecklistConducteurService extends BaseRepository {
-  async create(data: ICreateChecklistConducteur & { questions?: any[] }) {
-  const id = newId();
-
-  // Démarrer une transaction
-  const connection = await pool.getConnection();
-  await connection.beginTransaction();
-
-  try {
-    // 1. Insérer dans checklist_conducteur (en-tête)
-    await connection.query(
-      `
-      INSERT INTO checklist_conducteur
-        (id, project_id, subprojet, auditeur, date,
-         personne_rencontree, fonction, entreprise, contact,
-         duree_entretien, lieu, commentaires_libres, signature_auditeur)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-      `,
+  
+  /**
+   * Créer un conducteur complet
+   */
+  async create(data: ICreateChecklistConducteur & { questions?: any[] }): Promise<IChecklistConducteurComplet> {
+    const id = newId();
+    const questionsJson = data.questions ? JSON.stringify(data.questions) : null;
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_create_checklist_conducteur(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         id,
         data.project_id,
         data.subprojet,
         data.auditeur,
-        data.date,
+        data.entreprise,
         data.personne_rencontree,
         data.fonction,
-        data.entreprise,
         data.contact ?? null,
         data.duree_entretien ?? null,
+        data.date,
         data.lieu,
         data.commentaires_libres ?? null,
         data.signature_auditeur ?? null,
+        questionsJson
       ]
     );
-
-    // 2. Insérer les questions dans checklist_conducteur_questions
-    if (data.questions && data.questions.length > 0) {
-      for (const q of data.questions) {
-        const questionId = newId();
-        await connection.query(
-          `
-          INSERT INTO checklist_conducteur_questions 
-          (id, checklist_conducteur_id, section_key, numero, question, 
-           reponse, reponse_booleenne, observations, sort_order)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            questionId,
-            id,  // ← Lien avec l'en-tête
-            q.section_key,
-            q.numero,
-            q.question,
-            q.reponse ?? null,
-            q.reponse_booleenne ?? null,
-            q.observations ?? null,
-            q.sort_order ?? 0
-          ]
-        );
-      }
-    }
-    await connection.commit();
-
-    // retourner l'objet complet
-    return (await this.getById(id))!;
-
     
-  } catch (error) {
-    await connection.rollback();
-    throw error;
-  } finally {
-    connection.release();
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la création du conducteur ${id}`);
+    }
+    return result;
   }
-}
 
-async getById(id: string): Promise<(IChecklistConducteur & { questions: IChecklistConducteurQuestion[] }) | null> {
-  // 1. Récupérer l'en-tête
-  const [header] = await pool.query<any[]>(
-    'SELECT * FROM checklist_conducteur WHERE id = ?',
-    [id]
-  );
-  if (!header[0]) return null;
-  
-  // 2. Récupérer les questions
-  const [questions] = await pool.query<any[]>(
-    'SELECT * FROM checklist_conducteur_questions WHERE checklist_conducteur_id = ? ORDER BY section_key, sort_order',
-    [id]
-  );
-  
-  // 3. Retourner l'objet complet
-  const mapped = this._mapConducteur(header[0]);
-  return {
-    ...mapped,
-    questions: questions.map(q => ({
-      id: q.id,
-      checklist_conducteur_id: q.checklist_conducteur_id,
-      section_key: q.section_key,
-      numero: q.numero,
-      question: q.question,
-      reponse: q.reponse ?? null,
-      reponse_booleenne: q.reponse_booleenne as ReponseBooleenne | null,
-      observations: q.observations ?? null,
-      sort_order: q.sort_order,
-    }))
-  };
-}
+  /**
+   * Récupérer un conducteur complet par son ID
+   */
+  async getById(id: string): Promise<IChecklistConducteurComplet | null> {
+    const [results] = await pool.query<any[]>(
+      'CALL sp_get_checklist_conducteur_complet(?)',
+      [id]
+    );
+    
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
+    }
+    
+    return this._formatProcedureResult(results);
+  }
 
+  /**
+   * Mettre à jour les réponses d'un conducteur
+   */
+  async updateReponses(conducteurId: string, questions: any[]): Promise<IChecklistConducteurComplet> {
+    const questionsJson = JSON.stringify(questions);
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_update_checklist_conducteur_reponses(?, ?)',
+      [conducteurId, questionsJson]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la mise à jour du conducteur ${conducteurId}`);
+    }
+    return result;
+  }
+
+  /**
+   * Soumettre un conducteur
+   */
+  async submit(id: string): Promise<IChecklistConducteurComplet> {
+    const [results] = await pool.query<any[]>(
+      'CALL sp_submit_checklist_conducteur(?)',
+      [id]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la soumission du conducteur ${id}`);
+    }
+    return result;
+  }
+
+  /**
+   * Lister tous les conducteurs d'un projet
+   */
   async getAll(
     projectId?: string,
-    page = 1,
-    limit = 10
+    page: number = 1,
+    limit: number = 10
   ): Promise<Paginated<IChecklistConducteur>> {
-    const params: unknown[] = [];
-    let where = '1=1';
-
-    if (projectId) {
-      where = 'project_id = ?';
-      params.push(projectId);
-    }
-
     const offset = (page - 1) * limit;
-
-    const [rows] = await pool.query<any[]>(
-      `SELECT * FROM checklist_conducteur WHERE ${where} ORDER BY date DESC LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_list_checklist_conducteur(?, ?, ?)',
+      [projectId ?? null, limit, offset]
     );
-    const total = await this.countRows('checklist_conducteur', where, params);
-
+    
+    const items = results[0] || [];
+    const total = results[1]?.[0]?.total || 0;
+    
     return {
-      items: rows.map(r => this._mapConducteur(r)),
+      items: items.map((r: any) => this._mapConducteur(r)),
       total,
       page,
       totalPages: Math.ceil(total / limit),
     };
   }
 
-  async update(
-    id: string,
-    data: Partial<ICreateChecklistConducteur>
-  ): Promise<IChecklistConducteur | null> {
-    const existing = await this.getById(id);
-    if (!existing) throw new Error('Checklist introuvable');
+  // ===========================================================================
+  //  MÉTHODES PRIVÉES
+  // ===========================================================================
 
-    const fields: string[] = [];
-    const values: unknown[] = [];
-
-    const updatableFields = [
-      'subprojet',
-      'auditeur',
-      'date',
-      'personne_rencontree',
-      'fonction',
-      'entreprise',
-      'contact',
-      'duree_entretien',
-      'lieu',
-      'commentaires_libres',
-      'signature_auditeur',
-    ] as const;
-
-    for (const field of updatableFields) {
-      if (data[field] !== undefined) {
-        fields.push(`${field} = ?`);
-        values.push(data[field] ?? null);
-      }
+  private _formatProcedureResult(results: any[]): IChecklistConducteurComplet | null {
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
     }
-
-    if (fields.length) {
-      await pool.query(
-        `UPDATE checklist_conducteur SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-        [...values, id]
-      );
-    }
-
-    return this.getById(id);
-  }
-
-  async getQuestions(conducteurId: string): Promise<IChecklistConducteurQuestion[]> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM checklist_conducteur_questions WHERE checklist_conducteur_id = ? ORDER BY section_key, sort_order',
-      [conducteurId]
-    );
-    return rows.map(r => ({
-      id: r.id,
-      checklist_conducteur_id: r.checklist_conducteur_id,
-      section_key: r.section_key,
-      numero: r.numero,
-      question: r.question,
-      reponse: r.reponse ?? null,
-      reponse_booleenne: r.reponse_booleenne as ReponseBooleenne | null,
-      observations: r.observations ?? null,
-      sort_order: r.sort_order,
-    }));
-  }
-
-  // Ajoutez cette méthode dans ChecklistConducteurService
-async addQuestions(
-  conducteurId: string, 
-  questions: Omit<IChecklistConducteurQuestion, 'id'>[]
-): Promise<void> {
-  if (!questions.length) return;
-
-  const values: unknown[] = [];
-  const placeholders: string[] = [];
-
-  for (const q of questions) {
-    const id = newId();
-    placeholders.push('(?, ?, ?, ?, ?, ?, ?, ?, ?)');
-    values.push(
-      id,
-      conducteurId,
-      q.section_key,
-      q.numero,
-      q.question,
-      q.reponse ?? null,
-      q.reponse_booleenne ?? null,
-      q.observations ?? null,
-      q.sort_order ?? 0
-    );
-  }
-
-  await pool.query(
-    `
-    INSERT INTO checklist_conducteur_questions 
-    (id, checklist_conducteur_id, section_key, numero, question, 
-     reponse, reponse_booleenne, observations, sort_order)
-    VALUES ${placeholders.join(', ')}
-    `,
-    values
-  );
-}
-
-// Et aussi une méthode pour sauvegarder/remplacer toutes les questions
-async saveAllQuestions(
-  conducteurId: string,
-  questions: Omit<IChecklistConducteurQuestion, 'id'>[]
-): Promise<void> {
-  // Supprimer les anciennes questions
-  await pool.query(
-    'DELETE FROM checklist_conducteur_questions WHERE checklist_conducteur_id = ?',
-    [conducteurId]
-  );
-  
-  // Ajouter les nouvelles
-  if (questions.length) {
-    await this.addQuestions(conducteurId, questions);
-  }
-}
-
-  async updateQuestion(
-    conducteurId: string,
-    questionId: string,
-    data: Partial<IChecklistConducteurQuestion>
-  ): Promise<IChecklistConducteurQuestion | null> {
-    const fields: string[] = [];
-    const values: unknown[] = [];
-
-    const updatableFields = ['reponse', 'reponse_booleenne', 'observations'] as const;
-
-    for (const field of updatableFields) {
-      if (data[field] !== undefined) {
-        fields.push(`${field} = ?`);
-        values.push(data[field]);
-      }
-    }
-
-    if (fields.length) {
-      await pool.query(
-        `UPDATE checklist_conducteur_questions SET ${fields.join(', ')} WHERE id = ? AND checklist_conducteur_id = ?`,
-        [...values, questionId, conducteurId]
-      );
-    }
-
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM checklist_conducteur_questions WHERE id = ?',
-      [questionId]
-    );
-    if (!rows.length) return null;
-
-    const r = rows[0];
+    
+    const header = results[0][0];
+    const questions = results[1] || [];
+    
     return {
-      id: r.id,
-      checklist_conducteur_id: r.checklist_conducteur_id,
-      section_key: r.section_key,
-      numero: r.numero,
-      question: r.question,
-      reponse: r.reponse ?? null,
-      reponse_booleenne: r.reponse_booleenne as ReponseBooleenne | null,
-      observations: r.observations ?? null,
-      sort_order: r.sort_order,
+      id: header.id,
+      project_id: header.project_id,
+      subprojet: header.subprojet,
+      auditeur: header.auditeur,
+      entreprise: header.entreprise,
+      personne_rencontree: header.personne_rencontree,
+      fonction: header.fonction,
+      contact: header.contact ?? null,
+      duree_entretien: header.duree_entretien ?? null,
+      date: new Date(header.date),
+      lieu: header.lieu,
+      commentaires_libres: header.commentaires_libres ?? null,
+      signature_auditeur: header.signature_auditeur ?? null,
+      status: header.status ?? 'submitted',
+      created_at: new Date(header.created_at),
+      updated_at: new Date(header.updated_at),
+      questions: questions.map((q: any) => ({
+        id: q.numero,
+        checklist_conducteur_id: header.id,
+        section_key: q.section_key,
+        numero: q.numero,
+        question: q.question,
+        reponse: q.reponse ?? null,
+        reponse_booleenne: q.reponse_booleenne as ReponseBooleenne | null,
+        observations: q.observations ?? null,
+        sort_order: q.sort_order,
+      }))
     };
   }
 
@@ -577,12 +378,12 @@ async saveAllQuestions(
       project_id: r.project_id,
       subprojet: r.subprojet,
       auditeur: r.auditeur,
-      date: new Date(r.date),
+      entreprise: r.entreprise,
       personne_rencontree: r.personne_rencontree,
       fonction: r.fonction,
-      entreprise: r.entreprise,
       contact: r.contact ?? null,
       duree_entretien: r.duree_entretien ?? null,
+      date: new Date(r.date),
       lieu: r.lieu,
       commentaires_libres: r.commentaires_libres ?? null,
       signature_auditeur: r.signature_auditeur ?? null,
@@ -591,3 +392,5 @@ async saveAllQuestions(
     };
   }
 }
+
+export const checklistConducteurService = new ChecklistConducteurService();

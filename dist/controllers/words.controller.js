@@ -91,10 +91,38 @@ class WordExportController {
                         buffer = yield (0, words_service_1.exportConducteurWord)(data, projectName, projectLocation, auditors);
                         filename = generateFilename('checklist-conducteur', data.subprojet || 'conducteur');
                         break;
-                    case 'apes':
-                        buffer = yield (0, words_service_1.exportAPESWord)(data, projectName, projectLocation, auditors);
+                    case 'apes': {
+                        // Pour APES, il faut extraire les questions du formulaire
+                        const questions = extractQuestionsFromAPESData(data);
+                        buffer = yield (0, words_service_1.exportAPESWord)({
+                            project_name: data.project_name || projectName,
+                            date: data.date ? new Date(data.date).toISOString().split('T')[0] : new Date().toISOString(),
+                            auditors: data.auditors || auditors,
+                            location: data.location || projectLocation,
+                            period: data.period || '',
+                            document_review: data.document_review ? {
+                                documents_presents: data.document_review.documents_presents,
+                            } : undefined,
+                            field_inspection: data.field_inspection ? {
+                                water_management: data.field_inspection.water_management,
+                                waste_management: data.field_inspection.waste_management,
+                                emissions: data.field_inspection.emissions,
+                                health_safety: data.field_inspection.health_safety,
+                                community: data.field_inspection.community,
+                            } : undefined,
+                            stakeholder_interview: data.stakeholder_interview ? {
+                                responses: data.stakeholder_interview.responses,
+                            } : undefined,
+                            gender_assessment: data.gender_assessment ? {
+                                quantitative_data: data.gender_assessment.quantitative_data,
+                            } : undefined,
+                            complaint_mechanism: data.complaint_mechanism ? {
+                                documentary_basis: data.complaint_mechanism.documentary_basis,
+                            } : undefined,
+                        }, projectName, projectLocation, auditors, questions);
                         filename = generateFilename('apes', projectName);
                         break;
+                    }
                     case 'data-collection':
                         buffer = yield (0, words_service_1.exportDataCollectionWord)(data, projectName, projectLocation, auditors);
                         filename = generateFilename('data-collection', data.subprojet || 'data-collection');
@@ -115,5 +143,39 @@ class WordExportController {
     }
 }
 exports.WordExportController = WordExportController;
+// =============================================================================
+//  FONCTION D'EXTRACTION DES QUESTIONS POUR APES
+// =============================================================================
+function extractQuestionsFromAPESData(data) {
+    const questions = [];
+    // Si les questions sont déjà dans data.questions
+    if (data.questions && Array.isArray(data.questions)) {
+        return data.questions.map((q) => ({
+            section_key: q.section_key,
+            question_id: q.question_id,
+            question_text: q.question_text,
+            sort_order: q.sort_order,
+        }));
+    }
+    // Si les questions sont dans data.questions_by_section
+    if (data.questions_by_section) {
+        for (const section of Object.values(data.questions_by_section)) {
+            if (Array.isArray(section)) {
+                for (const q of section) {
+                    questions.push({
+                        section_key: q.section_key,
+                        question_id: q.question_id,
+                        question_text: q.question_text,
+                        sort_order: q.sort_order,
+                    });
+                }
+            }
+        }
+        return questions;
+    }
+    // Si aucune question n'est trouvée, retourner un tableau vide
+    console.warn('[APES Export] Aucune question trouvée dans les données');
+    return [];
+}
 exports.default = WordExportController;
 //# sourceMappingURL=words.controller.js.map

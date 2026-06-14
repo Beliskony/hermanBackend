@@ -13,17 +13,37 @@ export {
   exportDataCollectionWord,
 } from './index';
 
-// Export global (conserve ta fonction existante ou réécris-la)
+// Export global
 import { Document, Packer, Paragraph, Table } from 'docx';
 import { PAGE } from './shared/styles';
 import { sectionTitle, subTitle, pageBreak, buildNumbering, buildParagraphStyles, formatDate } from './shared/helpers';
 import { buildCoverPage, buildTableOfContents, buildIntroduction, buildGeneralConclusion, buildHeader, buildFooter } from './shared/templates';
-import { buildDocumentReviewSection, buildFieldInspectionSection, buildStakeholderInterviewSection, buildGenderAssessmentSection, buildComplaintMechanismSection } from './apes.word';
-import { buildGuideEntretienSection } from './guide.word';
-import { buildAuditSection } from './audit.word';
-import { buildConducteurSection } from './conducteur.word';
-import { buildDataCollectionRevueDocSection, buildDataCollectionInspectionSection, buildDataCollectionEntretienSection, buildDataCollectionGenreSection, buildDataCollectionMGPSection, buildDataCollectionQuickSynthesis } from './data_collection';
+import { buildDocumentReviewSection, buildFieldInspectionSection, buildStakeholderInterviewSection, buildGenderAssessmentSection, buildComplaintMechanismSection, exportAPESWord } from './apes.word';
+import { buildGuideEntretienSection, exportGuideWord } from './guide.word';
+import { buildAuditSection, exportAuditWord } from './audit.word';
+import { buildConducteurSection, exportConducteurWord } from './conducteur.word';
+import { 
+  buildDataCollectionRevueDocSection, 
+  buildDataCollectionInspectionSection, 
+  buildDataCollectionEntretienSection, 
+  buildDataCollectionGenreSection, 
+  buildDataCollectionMGPSection, 
+  buildDataCollectionQuickSynthesis,
+  exportDataCollectionWord 
+} from './data_collection';
 
+// Imports des services
+import { APESFormService } from '../formulaire/APES_form';
+import { guideEntretienService } from '../formulaire/Guide_entretient';
+import { checklistAuditService, checklistConducteurService } from '../formulaire/Checklist.service';
+import { dataCollectionService } from '../formulaire/data_collection.service';
+
+// Instances des services
+const apesFormService = new APESFormService();
+
+// =============================================================================
+//  EXPORT GLOBAL - TOUS LES FORMULAIRES D'UN PROJET
+// =============================================================================
 
 export async function exportAllFormsWord(
   projectName: string,
@@ -48,9 +68,7 @@ export async function exportAllFormsWord(
     'CONCLUSION GÉNÉRALE',
   ];
 
-  const children: (Paragraph | Table)[] = [
-    ...buildIntroduction(),
-  ];
+  const children: (Paragraph | Table)[] = [...buildIntroduction()];
 
   // APES complet
   if (apesData) {
@@ -106,17 +124,29 @@ export async function exportAllFormsWord(
     for (let i = 0; i < dataCollectionData.length; i++) {
       const dc = dataCollectionData[i];
       children.push(subTitle(`Collecte ${i + 1}`));
-      children.push(...buildDataCollectionRevueDocSection(dc.revue_documentaire));
-      children.push(pageBreak());
-      children.push(...buildDataCollectionInspectionSection(dc.inspection_terrain));
-      children.push(pageBreak());
-      children.push(...buildDataCollectionEntretienSection(dc.entretien_pp));
-      children.push(pageBreak());
-      children.push(...buildDataCollectionGenreSection(dc.evaluation_genre));
-      children.push(pageBreak());
-      children.push(...buildDataCollectionMGPSection(dc.evaluation_mgp));
-      children.push(pageBreak());
+      
+      if (dc.revue_documentaire) {
+        children.push(...buildDataCollectionRevueDocSection(dc.revue_documentaire));
+        children.push(pageBreak());
+      }
+      if (dc.inspection_terrain) {
+        children.push(...buildDataCollectionInspectionSection(dc.inspection_terrain));
+        children.push(pageBreak());
+      }
+      if (dc.entretien_pp) {
+        children.push(...buildDataCollectionEntretienSection(dc.entretien_pp));
+        children.push(pageBreak());
+      }
+      if (dc.evaluation_genre) {
+        children.push(...buildDataCollectionGenreSection(dc.evaluation_genre));
+        children.push(pageBreak());
+      }
+      if (dc.evaluation_mgp) {
+        children.push(...buildDataCollectionMGPSection(dc.evaluation_mgp));
+        children.push(pageBreak());
+      }
       children.push(...buildDataCollectionQuickSynthesis(dc));
+      
       if (i < dataCollectionData.length - 1) children.push(pageBreak());
     }
     children.push(pageBreak());
@@ -147,4 +177,119 @@ export async function exportAllFormsWord(
   });
 
   return Packer.toBuffer(doc);
+}
+
+// =============================================================================
+//  EXPORTS INDIVIDUELS PAR FORMULAIRE
+// =============================================================================
+
+export async function exportSingleAPESWord(
+  formId: string,
+  projectName: string,
+  projectLocation: string,
+  auditors: string
+): Promise<Buffer> {
+  const fullForm = await apesFormService.getById(formId);
+  if (!fullForm) throw new Error('Formulaire non trouvé');
+
+  // Utiliser les propriétés directes de IAPESFormWithDetails
+  // project_name, date, auditors, location, period sont directement sur l'objet
+  const wordData = {
+    project_name: fullForm.project_name || '',
+    date: fullForm.date ? fullForm.date.toISOString().split('T')[0] : new Date().toISOString(),
+    auditors: fullForm.auditors || '',
+    location: fullForm.location || '',
+    period: fullForm.period || '',
+    document_review: fullForm.document_review ? {
+      documents_presents: fullForm.document_review.documents_presents,
+    } : undefined,
+    field_inspection: fullForm.field_inspection ? {
+      water_management: fullForm.field_inspection.water_management,
+      waste_management: fullForm.field_inspection.waste_management,
+      emissions: fullForm.field_inspection.emissions,
+      health_safety: fullForm.field_inspection.health_safety,
+      community: fullForm.field_inspection.community,
+    } : undefined,
+    stakeholder_interview: fullForm.stakeholder_interview ? {
+      responses: fullForm.stakeholder_interview.responses,
+    } : undefined,
+    gender_assessment: fullForm.gender_assessment ? {
+      quantitative_data: fullForm.gender_assessment.quantitative_data,
+    } : undefined,
+    complaint_mechanism: fullForm.complaint_mechanism ? {
+      documentary_basis: fullForm.complaint_mechanism.documentary_basis,
+    } : undefined,
+  };
+
+  // Récupérer les questions depuis l'objet (si disponible)
+  // Dans IAPESFormWithDetails, les questions peuvent être dans une propriété 'questions'
+  // ou dans 'questions_by_section'
+  let questions: any[] = [];
+  if (fullForm.questions_by_section) {
+    // Transformer les questions groupées en tableau plat
+    for (const section of Object.values(fullForm.questions_by_section)) {
+      if (Array.isArray(section)) {
+        questions.push(...section);
+      }
+    }
+  } else if (fullForm.questions) {
+    questions = fullForm.questions;
+  }
+
+  const formattedQuestions = questions.map((q: any) => ({
+    section_key: q.section_key,
+    question_id: q.question_id,
+    question_text: q.question_text,
+    sort_order: q.sort_order,
+  }));
+
+  return exportAPESWord(wordData, projectName, projectLocation, auditors, formattedQuestions);
+}
+
+export async function exportSingleGuideWord(
+  guideId: string,
+  projectName: string,
+  projectLocation: string,
+  auditors: string
+): Promise<Buffer> {
+  const guide = await guideEntretienService.getById(guideId);
+  if (!guide) throw new Error('Guide non trouvé');
+  
+  return exportGuideWord(guide, projectName, projectLocation, auditors);
+}
+
+export async function exportSingleAuditWord(
+  auditId: string,
+  projectName: string,
+  projectLocation: string,
+  auditors: string
+): Promise<Buffer> {
+  const audit = await checklistAuditService.getById(auditId);
+  if (!audit) throw new Error('Audit non trouvé');
+  
+  return exportAuditWord(audit, projectName, projectLocation, auditors);
+}
+
+export async function exportSingleConducteurWord(
+  conducteurId: string,
+  projectName: string,
+  projectLocation: string,
+  auditors: string
+): Promise<Buffer> {
+  const conducteur = await checklistConducteurService.getById(conducteurId);
+  if (!conducteur) throw new Error('Checklist conducteur non trouvée');
+  
+  return exportConducteurWord(conducteur, projectName, projectLocation, auditors);
+}
+
+export async function exportSingleDataCollectionWord(
+  collectionId: string,
+  projectName: string,
+  projectLocation: string,
+  auditors: string
+): Promise<Buffer> {
+  const collection = await dataCollectionService.getById(collectionId);
+  if (!collection) throw new Error('Collecte de données non trouvée');
+  
+  return exportDataCollectionWord(collection, projectName, projectLocation, auditors);
 }

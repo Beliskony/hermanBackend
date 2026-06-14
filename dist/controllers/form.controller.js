@@ -11,7 +11,10 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.formController = exports.FormController = void 0;
 const form_service_1 = require("../services/form.service");
+const form_service_2 = require("../services/form.service");
+const databaseConnect_1 = require("../config/databaseConnect");
 const formService = new form_service_1.FormService();
+const questionService = new form_service_2.QuestionService();
 // =============================================================================
 // HELPERS
 // =============================================================================
@@ -68,13 +71,37 @@ class FormController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { projectId, formType } = req.params;
-                if (!isValidId(projectId))
-                    return res.status(400).json({ success: false, message: 'ID invalide' });
-                const questions = yield formService.questions.getFormQuestions(projectId, formType);
-                res.json({ success: true, data: questions });
+                const { sectionKey } = req.query;
+                const data = yield questionService.getFormQuestions(projectId, formType, sectionKey);
+                res.json({ data });
             }
-            catch (error) {
-                res.status(500).json({ success: false, message: error.message });
+            catch (e) {
+                res.status(500).json({ message: e.message });
+            }
+        });
+    }
+    getFormQuestionsBySection(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { projectId, formType, sectionKey } = req.params;
+                const data = yield questionService.getProjectQuestionsBySection(projectId, formType, sectionKey);
+                res.json({ data });
+            }
+            catch (e) {
+                res.status(500).json({ message: e.message });
+            }
+        });
+    }
+    getQuestionById(req, res) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const data = yield questionService.getProjectQuestionById(req.params.id);
+                if (!data)
+                    return res.status(404).json({ message: 'Question introuvable' });
+                res.json({ data });
+            }
+            catch (e) {
+                res.status(500).json({ message: e.message });
             }
         });
     }
@@ -167,20 +194,6 @@ class FormController {
             }
         });
     }
-    updateGuideEntretien(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                if (!isValidId(id))
-                    return res.status(400).json({ success: false, message: 'ID invalide' });
-                const result = yield formService.guideEntretien.update(id, req.body);
-                res.json({ success: true, type: 'guide_entretien', data: result });
-            }
-            catch (error) {
-                res.status(400).json({ success: false, message: error.message });
-            }
-        });
-    }
     submitGuideEntretien(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -239,20 +252,6 @@ class FormController {
             }
         });
     }
-    submitDataCollection(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                if (!isValidId(id))
-                    return res.status(400).json({ success: false, message: 'ID invalide' });
-                const result = yield formService.dataCollection.submit(id);
-                res.json({ success: true, type: 'data_collection', message: 'Formulaire Data Collection soumis avec succès', data: result });
-            }
-            catch (error) {
-                res.status(400).json({ success: false, message: error.message });
-            }
-        });
-    }
     // ===========================================================================
     // CHECKLIST AUDIT
     // ===========================================================================
@@ -280,20 +279,6 @@ class FormController {
             }
             catch (error) {
                 res.status(500).json({ success: false, message: error.message });
-            }
-        });
-    }
-    updateChecklistAudit(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                if (!isValidId(id))
-                    return res.status(400).json({ success: false, message: 'ID invalide' });
-                const result = yield formService.checklistAudit.update(id, req.body);
-                res.json({ success: true, type: 'checklist_audit', data: result });
-            }
-            catch (error) {
-                res.status(400).json({ success: false, message: error.message });
             }
         });
     }
@@ -340,20 +325,6 @@ class FormController {
             }
         });
     }
-    updateChecklistConducteur(req, res) {
-        return __awaiter(this, void 0, void 0, function* () {
-            try {
-                const { id } = req.params;
-                if (!isValidId(id))
-                    return res.status(400).json({ success: false, message: 'ID invalide' });
-                const result = yield formService.checklistConducteur.update(id, req.body);
-                res.json({ success: true, type: 'checklist_conducteur', data: result });
-            }
-            catch (error) {
-                res.status(400).json({ success: false, message: error.message });
-            }
-        });
-    }
     submitChecklistConducteur(req, res) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
@@ -374,25 +345,29 @@ class FormController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const { id } = req.params;
+                const type = req.query.type;
                 if (!isValidId(id))
                     return res.status(400).json({ success: false, message: 'ID invalide' });
-                // Essayer chaque type
-                const guide = yield formService.guideEntretien.getById(id);
-                if (guide)
-                    return res.json({ success: true, type: 'guide_entretien', data: guide });
-                const audit = yield formService.checklistAudit.getById(id);
-                if (audit)
-                    return res.json({ success: true, type: 'checklist_audit', data: audit });
-                const conducteur = yield formService.checklistConducteur.getById(id);
-                if (conducteur)
-                    return res.json({ success: true, type: 'checklist_conducteur', data: conducteur });
-                const apes = yield formService.apes.getById(id);
-                if (apes)
-                    return res.json({ success: true, type: 'apes', data: apes });
-                // Data Collection ← AJOUTER
-                const dataCollection = yield formService.dataCollection.getById(id);
-                if (dataCollection)
-                    return res.json({ success: true, type: 'data_collection', data: dataCollection });
+                const resolvers = {
+                    guide_entretien: () => formService.guideEntretien.getById(id),
+                    checklist_audit: () => formService.checklistAudit.getById(id),
+                    checklist_conducteur: () => formService.checklistConducteur.getById(id),
+                    apes: () => formService.apes.getById(id),
+                    data_collection: () => formService.dataCollection.getById(id),
+                };
+                // Si le type est fourni, requête directe
+                if (type && resolvers[type]) {
+                    const data = yield resolvers[type]();
+                    if (!data)
+                        return res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
+                    return res.json({ success: true, type, data });
+                }
+                // Fallback : essai séquentiel
+                for (const [formType, resolve] of Object.entries(resolvers)) {
+                    const data = yield resolve();
+                    if (data)
+                        return res.json({ success: true, type: formType, data });
+                }
                 res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
             }
             catch (error) {
@@ -422,30 +397,77 @@ class FormController {
             try {
                 const { page, limit } = paginate(req);
                 const projectId = req.query.projectId;
-                const [apes, guides, audits, conducteurs, dataCollections] = yield Promise.all([
-                    formService.apes.getAll(projectId, undefined, page, 100),
-                    formService.guideEntretien.getAll(projectId, undefined, page, 100),
-                    formService.checklistAudit.getAll(projectId, page, 100),
-                    formService.checklistConducteur.getAll(projectId, page, 100),
-                    formService.dataCollection.getAll(projectId, undefined, page, 100)
-                ]);
+                if (!projectId) {
+                    return res.status(400).json({ success: false, message: 'projectId requis' });
+                }
+                // Utiliser les procédures existantes
+                const [apesRows] = yield databaseConnect_1.pool.query('CALL sp_list_apes(?, ?, ?, ?)', [projectId, null, limit, (page - 1) * limit]);
+                const [guideRows] = yield databaseConnect_1.pool.query(`SELECT id, status, created_at, submitted_at, subprojet, 'guide_entretien' AS formType 
+       FROM guide_entretien WHERE project_id = ?`, [projectId]);
+                const [auditRows] = yield databaseConnect_1.pool.query(`SELECT id, status, created_at, submitted_at, subprojet, 'checklist_audit' AS formType 
+       FROM checklist_audit WHERE project_id = ?`, [projectId]);
+                const [conducteurRows] = yield databaseConnect_1.pool.query(`SELECT id, status, created_at, submitted_at, subprojet, 'checklist_conducteur' AS formType 
+       FROM checklist_conducteur WHERE project_id = ?`, [projectId]);
+                const [dataCollectionRows] = yield databaseConnect_1.pool.query(`SELECT dc.id, dc.status, dc.created_at, dc.submitted_at, drd.subprojet, 'data_collection' AS formType
+       FROM data_collection dc
+       LEFT JOIN data_collection_revue_doc drd ON drd.data_collection_id = dc.id
+       WHERE dc.project_id = ?`, [projectId]);
+                // apesRows[0] contient les résultats, apesRows[1] contient le total
+                const apesItems = apesRows[0] || [];
                 const allForms = [
-                    ...(apes.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'apes' }))),
-                    ...(guides.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'guide_entretien' }))),
-                    ...(audits.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'checklist_audit' }))),
-                    ...(conducteurs.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'checklist_conducteur' }))),
-                    ...(dataCollections.items || []).map((f) => (Object.assign(Object.assign({}, f), { formType: 'data_collection' })))
+                    ...apesItems.map((r) => ({
+                        id: r.form_id,
+                        name: r.project_name || 'Formulaire APES',
+                        type: 'apes',
+                        status: r.status,
+                        created_at: r.created_at,
+                        submitted_at: r.submitted_at
+                    })),
+                    ...guideRows.map((r) => ({
+                        id: r.id,
+                        name: r.subprojet || 'Guide entretien',
+                        type: 'guide_entretien',
+                        status: r.status,
+                        created_at: r.created_at,
+                        submitted_at: r.submitted_at
+                    })),
+                    ...auditRows.map((r) => ({
+                        id: r.id,
+                        name: r.subprojet || 'Checklist audit',
+                        type: 'checklist_audit',
+                        status: r.status,
+                        created_at: r.created_at,
+                        submitted_at: r.submitted_at
+                    })),
+                    ...conducteurRows.map((r) => ({
+                        id: r.id,
+                        name: r.subprojet || 'Checklist conducteur',
+                        type: 'checklist_conducteur',
+                        status: r.status,
+                        created_at: r.created_at,
+                        submitted_at: r.submitted_at
+                    })),
+                    ...dataCollectionRows.map((r) => ({
+                        id: r.id,
+                        name: r.subprojet || 'Data collection',
+                        type: 'data_collection',
+                        status: r.status,
+                        created_at: r.created_at,
+                        submitted_at: r.submitted_at
+                    }))
                 ];
                 allForms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                const total = allForms.length;
                 const start = (page - 1) * limit;
                 const paginated = allForms.slice(start, start + limit);
                 res.json({
                     success: true,
                     data: paginated,
-                    pagination: { page, limit, total: allForms.length, totalPages: Math.ceil(allForms.length / limit) }
+                    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
                 });
             }
             catch (error) {
+                console.error('Erreur getAllForms:', error);
                 res.status(500).json({ success: false, message: error.message });
             }
         });

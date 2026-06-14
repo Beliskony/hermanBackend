@@ -357,82 +357,135 @@ export interface ICreateDataCollection {
 
 export class DataCollectionService extends BaseRepository {
   
-  // =========================================================================
-  //  CRUD PRINCIPAL
-  // =========================================================================
-
-  async create(data: ICreateDataCollection): Promise<IDataCollection> {
+  /**
+   * Créer une collecte complète (utilise sp_create_data_collection)
+   */
+/**
+ * Créer une collecte complète (utilise sp_create_data_collection)
+ */
+async create(data: ICreateDataCollection): Promise<IDataCollection> {
     const id = newId();
-
-    await pool.query('START TRANSACTION');
-
-    try {
-      await pool.query(
-        `INSERT INTO data_collection (id, project_id, status)
-         VALUES (?, ?, 'draft')`,
-        [id, data.project_id]
-      );
-
-      if (data.revue_documentaire) {
-        await this._createRevueDocumentaire(id, data.revue_documentaire);
-      }
-
-      if (data.inspection_terrain) {
-        await this._createInspectionTerrain(id, data.inspection_terrain);
-      }
-
-      if (data.entretien_pp) {
-        await this._createEntretienPP(id, data.entretien_pp);
-      }
-
-      if (data.evaluation_genre) {
-        await this._createEvaluationGenre(id, data.evaluation_genre);
-      }
-
-      if (data.evaluation_mgp) {
-        await this._createEvaluationMGP(id, data.evaluation_mgp);
-      }
-
-      await pool.query('COMMIT');
-      return (await this.getById(id))!;
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      throw error;
+    
+    // 🔥 CORRECTION : Inclure TOUS les tableaux dans les JSON
+    const revueDocJson = data.revue_documentaire ? JSON.stringify({
+        subprojet: data.revue_documentaire.subprojet,
+        auditeurs: data.revue_documentaire.auditeurs,
+        date: data.revue_documentaire.date,
+        periode_couverte: data.revue_documentaire.periode_couverte,
+        documents: data.revue_documentaire.documents || [],           //AJOUTÉ
+        documents_manquants: data.revue_documentaire.documents_manquants,
+        autres_documents: data.revue_documentaire.autres_documents,
+        observations_generales: data.revue_documentaire.observations_generales
+    }) : null;
+    
+    const inspectionJson = data.inspection_terrain ? JSON.stringify({
+        subprojet: data.inspection_terrain.subprojet,
+        date: data.inspection_terrain.date,
+        auditeurs: data.inspection_terrain.auditeurs,
+        personnes_rencontrees: data.inspection_terrain.personnes_rencontrees,
+        zones_inspectees: data.inspection_terrain.zones_inspectees || [],
+        points_controle: data.inspection_terrain.points_controle || [], //AJOUTÉ
+        observations_generales: data.inspection_terrain.observations_generales
+    }) : null;
+    
+    const entretienJson = data.entretien_pp ? JSON.stringify({
+        subprojet: data.entretien_pp.subprojet,
+        date: data.entretien_pp.date,
+        lieu: data.entretien_pp.lieu,
+        type_partie_prenante: data.entretien_pp.type_partie_prenante,
+        auditeurs: data.entretien_pp.auditeurs,
+        mode: data.entretien_pp.mode ?? 'individuel',
+        interlocuteurs: data.entretien_pp.interlocuteurs || [],        //AJOUTÉ
+        reponses: data.entretien_pp.reponses || {},                    //AJOUTÉ
+        eval_qualite: data.entretien_pp.eval_qualite ?? 3,
+        eval_franchise: data.entretien_pp.eval_franchise ?? 3,
+        eval_pertinence: data.entretien_pp.eval_pertinence ?? 3,
+        eval_climat: data.entretien_pp.eval_climat ?? 3
+    }) : null;
+    
+    const genreJson = data.evaluation_genre ? JSON.stringify({
+        subprojet: data.evaluation_genre.subprojet,
+        auditeurs: data.evaluation_genre.auditeurs,
+        date: data.evaluation_genre.date,
+        score_global: data.evaluation_genre.score_global ?? 'ameliorer',
+        forces_principales: data.evaluation_genre.forces_principales,
+        deficiences_critiques: data.evaluation_genre.deficiences_critiques,
+        donnees_quantitatives: data.evaluation_genre.donnees_quantitatives || [],   //AJOUTÉ
+        impacts_differencies: data.evaluation_genre.impacts_differencies || [],     //AJOUTÉ
+        recommandations: data.evaluation_genre.recommandations || []                //AJOUTÉ
+    }) : null;
+    
+    const mgpJson = data.evaluation_mgp ? JSON.stringify({
+        subprojet: data.evaluation_mgp.subprojet,
+        auditeurs: data.evaluation_mgp.auditeurs,
+        date: data.evaluation_mgp.date,
+        periode_couverte_debut: data.evaluation_mgp.periode_couverte_debut,
+        periode_couverte_fin: data.evaluation_mgp.periode_couverte_fin,
+        base_documentaire: data.evaluation_mgp.base_documentaire || [],   //AJOUTÉ
+        criteres: data.evaluation_mgp.criteres || [],                     //AJOUTÉ
+        points_forts: data.evaluation_mgp.points_forts || [],             //AJOUTÉ
+        deficiences: data.evaluation_mgp.deficiences || [],               //AJOUTÉ
+        recommandations: data.evaluation_mgp.recommandations || [],       //AJOUTÉ
+        conclusion_globale: data.evaluation_mgp.conclusion_globale ?? 'non_evalue',
+        signature_auditeur: data.evaluation_mgp.signature_auditeur
+    }) : null;
+    
+    const [results] = await pool.query<any[]>(
+        'CALL sp_create_data_collection(?, ?, ?, ?, ?, ?, ?)',
+        [id, data.project_id, revueDocJson, inspectionJson, entretienJson, genreJson, mgpJson]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+        throw new Error(`Erreur lors de la création de la collecte ${id}`);
     }
-  }
+    return result;
+}
 
+  /**
+   * Récupérer une collecte complète (utilise sp_get_data_collection_complet)
+   */
   async getById(id: string): Promise<IDataCollection | null> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM data_collection WHERE id = ?',
+    const [results] = await pool.query<any[]>(
+      'CALL sp_get_data_collection_complet(?)',
       [id]
     );
-    if (!rows.length) return null;
-
-    const data = rows[0];
-
-    const [revue, inspection, entretien, genre, mgp] = await Promise.all([
-      this._getRevueDocumentaire(id),
-      this._getInspectionTerrain(id),
-      this._getEntretienPP(id),
-      this._getEvaluationGenre(id),
-      this._getEvaluationMGP(id)
-    ]);
-
-    return {
-      id: data.id,
-      project_id: data.project_id,
-      status: data.status,
-      created_at: new Date(data.created_at),
-      updated_at: new Date(data.updated_at),
-      submitted_at: data.submitted_at ? new Date(data.submitted_at) : undefined,
-      revue_documentaire: revue,
-      inspection_terrain: inspection,
-      entretien_pp: entretien,
-      evaluation_genre: genre,
-      evaluation_mgp: mgp,
-    };
+    
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
+    }
+    
+    return this._formatProcedureResult(results);
   }
 
+  /**
+   * Mettre à jour une collecte (supprime et recrée les annexes)
+   */
+  async update(id: string, data: Partial<ICreateDataCollection>): Promise<IDataCollection | null> {
+    const existing = await this.getById(id);
+    if (!existing) throw new Error('Formulaire de collecte introuvable');
+    if (existing.status === 'submitted') throw new Error('Impossible de modifier un formulaire soumis');
+
+    // Pour la mise à jour, on récupère l'existant et on fusionne
+    const mergedData: ICreateDataCollection = {
+      project_id: existing.project_id,
+      revue_documentaire: data.revue_documentaire ?? existing.revue_documentaire ?? undefined,
+      inspection_terrain: data.inspection_terrain ?? existing.inspection_terrain ?? undefined,
+      entretien_pp: data.entretien_pp ?? existing.entretien_pp ?? undefined,
+      evaluation_genre: data.evaluation_genre ?? existing.evaluation_genre ?? undefined,
+      evaluation_mgp: data.evaluation_mgp ?? existing.evaluation_mgp ?? undefined,
+    };
+    
+    // Supprimer l'ancienne collecte
+    await this._deleteCompleteCollection(id);
+    
+    // Recréer avec les nouvelles données
+    return this.create(mergedData);
+  }
+
+  /**
+   * Lister toutes les collectes d'un projet
+   */
   async getAll(
     projectId?: string,
     status?: string,
@@ -462,119 +515,38 @@ export class DataCollectionService extends BaseRepository {
 
     const items = await Promise.all(
       rows.map(async (r) => {
-        const [revue, inspection, entretien, genre, mgp] = await Promise.all([
-          this._getRevueDocumentaire(r.id),
-          this._getInspectionTerrain(r.id),
-          this._getEntretienPP(r.id),
-          this._getEvaluationGenre(r.id),
-          this._getEvaluationMGP(r.id)
-        ]);
-        return {
-          id: r.id,
-          project_id: r.project_id,
-          status: r.status,
-          created_at: new Date(r.created_at),
-          updated_at: new Date(r.updated_at),
-          submitted_at: r.submitted_at ? new Date(r.submitted_at) : undefined,
-          revue_documentaire: revue,
-          inspection_terrain: inspection,
-          entretien_pp: entretien,
-          evaluation_genre: genre,
-          evaluation_mgp: mgp,
-        };
+        const [results] = await pool.query<any[]>(
+          'CALL sp_get_data_collection_complet(?)',
+          [r.id]
+        );
+        return this._formatProcedureResult(results);
       })
     );
 
-    return { items, total, page, totalPages: Math.ceil(total / limit) };
+    return {
+      items: items.filter(i => i !== null),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  async update(id: string, data: Partial<ICreateDataCollection>): Promise<IDataCollection | null> {
-    const existing = await this.getById(id);
-    if (!existing) throw new Error('Formulaire de collecte introuvable');
-    if (existing.status === 'submitted') throw new Error('Impossible de modifier un formulaire soumis');
-
-    await pool.query('START TRANSACTION');
-
-    try {
-      if (data.revue_documentaire !== undefined) {
-        await this._deleteRevueDocumentaire(id);
-        if (data.revue_documentaire) {
-          await this._createRevueDocumentaire(id, data.revue_documentaire);
-        }
-      }
-
-      if (data.inspection_terrain !== undefined) {
-        await this._deleteInspectionTerrain(id);
-        if (data.inspection_terrain) {
-          await this._createInspectionTerrain(id, data.inspection_terrain);
-        }
-      }
-
-      if (data.entretien_pp !== undefined) {
-        await this._deleteEntretienPP(id);
-        if (data.entretien_pp) {
-          await this._createEntretienPP(id, data.entretien_pp);
-        }
-      }
-
-      if (data.evaluation_genre !== undefined) {
-        await this._deleteEvaluationGenre(id);
-        if (data.evaluation_genre) {
-          await this._createEvaluationGenre(id, data.evaluation_genre);
-        }
-      }
-
-      if (data.evaluation_mgp !== undefined) {
-        await this._deleteEvaluationMGP(id);
-        if (data.evaluation_mgp) {
-          await this._createEvaluationMGP(id, data.evaluation_mgp);
-        }
-      }
-
-      await pool.query('COMMIT');
-      return (await this.getById(id))!;
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      throw error;
-    }
-  }
-
-  async submit(id: string): Promise<IDataCollection> {
-    const existing = await this.getById(id);
-    if (!existing) throw new Error('Formulaire de collecte introuvable');
-    if (existing.status === 'submitted') throw new Error('Formulaire déjà soumis');
-
-    await pool.query(
-      `UPDATE data_collection 
-       SET status = 'submitted', submitted_at = NOW(), updated_at = NOW() 
-       WHERE id = ?`,
-      [id]
-    );
-
-    return (await this.getById(id))!;
-  }
-
+  /**
+   * Supprimer une collecte
+   */
   async delete(id: string): Promise<boolean> {
     const existing = await this.getById(id);
     if (!existing) return false;
     if (existing.status === 'submitted') throw new Error('Impossible de supprimer un formulaire soumis');
 
-    await pool.query('START TRANSACTION');
-    try {
-      await this._deleteRevueDocumentaire(id);
-      await this._deleteInspectionTerrain(id);
-      await this._deleteEntretienPP(id);
-      await this._deleteEvaluationGenre(id);
-      await this._deleteEvaluationMGP(id);
-      await pool.query('DELETE FROM data_collection WHERE id = ?', [id]);
-      await pool.query('COMMIT');
-      return true;
-    } catch (error) {
-      await pool.query('ROLLBACK');
-      throw error;
-    }
+    await this._deleteCompleteCollection(id);
+    await pool.query('DELETE FROM data_collection WHERE id = ?', [id]);
+    return true;
   }
 
+  /**
+   * Récupérer le résumé d'un projet
+   */
   async getProjectSummary(projectId: string): Promise<{
     total: number;
     submitted: number;
@@ -595,501 +567,173 @@ export class DataCollectionService extends BaseRepository {
   }
 
   // =========================================================================
-  //  PRIVÉS - ANNEXE 1 : REVUE DOCUMENTAIRE
+  //  MÉTHODES PRIVÉES
   // =========================================================================
 
-  private async _createRevueDocumentaire(dcId: string, data: ICreateRevueDocumentaire) {
-    const id = newId();
-    await pool.query(
-      `INSERT INTO data_collection_revue_doc
-         (id, data_collection_id, subprojet, auditeurs, date, periode_couverte,
-          documents_manquants, autres_documents, observations_generales)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, dcId, data.subprojet, data.auditeurs, data.date,
-       data.periode_couverte ?? null, data.documents_manquants ?? null,
-       data.autres_documents ?? null, data.observations_generales ?? null]
-    );
-
-    if (data.documents?.length) {
-      for (const [i, doc] of data.documents.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_revue_doc_items
-             (id, revue_doc_id, numero, categorie, document, objectif_examen, questions_cles,
-              disponible, observations, conformite, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, doc.numero, doc.categorie, doc.document,
-           doc.objectif_examen, doc.questions_cles, doc.disponible,
-           doc.observations ?? null, doc.conformite, doc.sort_order ?? i]
-        );
-      }
+  /**
+   * Formate le résultat d'une procédure (6 jeux de résultats)
+   */
+  private _formatProcedureResult(results: any[]): IDataCollection | null {
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
     }
-  }
-
-  private async _getRevueDocumentaire(dcId: string): Promise<IRevueDocumentaire | null> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_revue_doc WHERE data_collection_id = ?',
-      [dcId]
-    );
-    if (!rows.length) return null;
-
-    const [items] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_revue_doc_items WHERE revue_doc_id = ? ORDER BY sort_order',
-      [rows[0].id]
-    );
-
+    
+    const header = results[0][0];
+    const revueDoc = results[1]?.[0] || null;
+    const inspection = results[2]?.[0] || null;
+    const entretien = results[3]?.[0] || null;
+    const genre = results[4]?.[0] || null;
+    const mgp = results[5]?.[0] || null;
+    
     return {
-      id: rows[0].id,
-      data_collection_id: rows[0].data_collection_id,
-      subprojet: rows[0].subprojet,
-      auditeurs: rows[0].auditeurs,
-      date: rows[0].date,
-      periode_couverte: rows[0].periode_couverte ?? null,
-      documents: items.map((i: any) => ({
-        id: i.id,
-        numero: i.numero,
-        categorie: i.categorie,
-        document: i.document,
-        objectif_examen: i.objectif_examen,
-        questions_cles: i.questions_cles,
-        disponible: i.disponible,
-        observations: i.observations ?? null,
-        conformite: i.conformite,
-        sort_order: i.sort_order,
-      })),
-      documents_manquants: rows[0].documents_manquants ?? null,
-      autres_documents: rows[0].autres_documents ?? null,
-      observations_generales: rows[0].observations_generales ?? null,
+      id: header.id,
+      project_id: header.project_id,
+      status: header.status,
+      created_at: new Date(header.created_at),
+      updated_at: new Date(header.updated_at),
+      submitted_at: header.submitted_at ? new Date(header.submitted_at) : undefined,
+      
+      revue_documentaire: revueDoc ? {
+        id: revueDoc.revue_doc_id,
+        data_collection_id: header.id,
+        subprojet: revueDoc.subprojet,
+        auditeurs: revueDoc.auditeurs,
+        date: revueDoc.date,
+        periode_couverte: revueDoc.periode_couverte ?? null,
+        documents: revueDoc.documents ? JSON.parse(revueDoc.documents) : [],
+        documents_manquants: revueDoc.documents_manquants ?? null,
+        autres_documents: revueDoc.autres_documents ?? null,
+        observations_generales: revueDoc.observations_generales ?? null,
+      } : null,
+      
+      inspection_terrain: inspection ? {
+        id: inspection.inspection_id,
+        data_collection_id: header.id,
+        subprojet: inspection.subprojet,
+        date: inspection.date,
+        auditeurs: inspection.auditeurs,
+        personnes_rencontrees: inspection.personnes_rencontrees ?? null,
+        zones_inspectees: inspection.zones_inspectees ? JSON.parse(inspection.zones_inspectees) : [],
+        points_controle: inspection.points_controle ? JSON.parse(inspection.points_controle) : [],
+        observations_generales: inspection.observations_generales ?? null,
+      } : null,
+      
+      entretien_pp: entretien ? {
+        id: entretien.entretien_id,
+        data_collection_id: header.id,
+        subprojet: entretien.subprojet,
+        date: entretien.date,
+        lieu: entretien.lieu,
+        heure_debut: null,
+        heure_fin: null,
+        type_partie_prenante: entretien.type_partie_prenante,
+        type_partie_detail: null,
+        interlocuteurs: [],
+        auditeurs: entretien.auditeurs,
+        mode: entretien.mode,
+        taille_groupe: null,
+        enregistre: false,
+        consentement_participation: false,
+        consentement_notes: false,
+        consentement_enregistrement: false,
+        confidentialite_expliquee: false,
+        reponses: entretien.reponses ? JSON.parse(entretien.reponses) : {},
+        eval_qualite: entretien.eval_qualite,
+        eval_franchise: entretien.eval_franchise,
+        eval_pertinence: entretien.eval_pertinence,
+        eval_climat: entretien.eval_climat,
+        synthese_preoccupation_principale: entretien.synthese_preoccupation_principale ?? null,
+        synthese_suggestion_pertinente: entretien.synthese_suggestion_pertinente ?? null,
+        synthese_element_surprenant: entretien.synthese_element_surprenant ?? null,
+        synthese_recommandation_prioritaire: entretien.synthese_recommandation_prioritaire ?? null,
+        actions_suivi: entretien.actions_suivi ?? null,
+      } : null,
+      
+      evaluation_genre: genre ? {
+        id: genre.genre_id,
+        data_collection_id: header.id,
+        subprojet: genre.subprojet,
+        auditeurs: genre.auditeurs,
+        date: genre.date,
+        score_global: genre.score_global,
+        forces_principales: genre.forces_principales ?? null,
+        deficiences_critiques: genre.deficiences_critiques ?? null,
+        donnees_quantitatives: genre.donnees_quantitatives ? JSON.parse(genre.donnees_quantitatives) : [],
+        impacts_differencies: genre.impacts_differencies ? JSON.parse(genre.impacts_differencies) : [],
+        recommandations: genre.recommandations ? JSON.parse(genre.recommandations) : [],
+        plan_suivi_json: {},
+      } : null,
+      
+      evaluation_mgp: mgp ? {
+        id: mgp.mgp_id,
+        data_collection_id: header.id,
+        subprojet: mgp.subprojet,
+        auditeurs: mgp.auditeurs,
+        date: mgp.date,
+        periode_couverte_debut: mgp.periode_couverte_debut ?? null,
+        periode_couverte_fin: mgp.periode_couverte_fin ?? null,
+        base_documentaire: mgp.base_documentaire ? JSON.parse(mgp.base_documentaire) : [],
+        criteres: mgp.criteres ? JSON.parse(mgp.criteres) : [],
+        points_forts: mgp.points_forts ? JSON.parse(mgp.points_forts).map((p: any) => p.point) : [],
+        deficiences: mgp.deficiences ? JSON.parse(mgp.deficiences) : [],
+        recommandations: mgp.recommandations ? JSON.parse(mgp.recommandations) : [],
+        conclusion_globale: mgp.conclusion_globale,
+        signature_auditeur: mgp.signature_auditeur ?? null,
+      } : null,
     };
   }
 
-  private async _deleteRevueDocumentaire(dcId: string) {
-    const [rows] = await pool.query<any[]>(
+  /**
+   * Supprimer toutes les annexes d'une collecte
+   */
+  private async _deleteCompleteCollection(collectionId: string): Promise<void> {
+    // Récupérer les IDs des annexes
+    const [revueRows] = await pool.query<any[]>(
       'SELECT id FROM data_collection_revue_doc WHERE data_collection_id = ?',
-      [dcId]
+      [collectionId]
     );
-    if (rows.length) {
-      await pool.query('DELETE FROM data_collection_revue_doc_items WHERE revue_doc_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_revue_doc WHERE data_collection_id = ?', [dcId]);
-    }
-  }
-
-  // =========================================================================
-  //  PRIVÉS - ANNEXE 2 : INSPECTION TERRAIN
-  // =========================================================================
-
-  private async _createInspectionTerrain(dcId: string, data: ICreateInspectionTerrain) {
-    const id = newId();
-    await pool.query(
-      `INSERT INTO data_collection_inspection
-         (id, data_collection_id, subprojet, date, auditeurs, personnes_rencontrees,
-          zones_inspectees, observations_generales)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, dcId, data.subprojet, data.date, data.auditeurs,
-       data.personnes_rencontrees ?? null, stringify(data.zones_inspectees ?? []),
-       data.observations_generales ?? null]
-    );
-
-    if (data.points_controle?.length) {
-      for (const [i, pt] of data.points_controle.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_inspection_points
-             (id, inspection_id, code, theme, intitule, statut, observations, photo_ref, criticite, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, pt.code, pt.theme, pt.intitule, pt.statut,
-           pt.observations ?? null, pt.photo_ref ?? null, pt.criticite ?? null, pt.sort_order ?? i]
-        );
-      }
-    }
-  }
-
-  private async _getInspectionTerrain(dcId: string): Promise<IInspectionTerrain | null> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_inspection WHERE data_collection_id = ?',
-      [dcId]
-    );
-    if (!rows.length) return null;
-
-    const [points] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_inspection_points WHERE inspection_id = ? ORDER BY sort_order',
-      [rows[0].id]
-    );
-
-    return {
-      id: rows[0].id,
-      data_collection_id: rows[0].data_collection_id,
-      subprojet: rows[0].subprojet,
-      date: rows[0].date,
-      auditeurs: rows[0].auditeurs,
-      personnes_rencontrees: rows[0].personnes_rencontrees ?? null,
-      zones_inspectees: parseJson(rows[0].zones_inspectees) ?? [],
-      points_controle: points.map((p: any) => ({
-        id: p.id,
-        code: p.code,
-        theme: p.theme,
-        intitule: p.intitule,
-        statut: p.statut,
-        observations: p.observations ?? null,
-        photo_ref: p.photo_ref ?? null,
-        criticite: p.criticite ?? null,
-        sort_order: p.sort_order,
-      })),
-      observations_generales: rows[0].observations_generales ?? null,
-    };
-  }
-
-  private async _deleteInspectionTerrain(dcId: string) {
-    const [rows] = await pool.query<any[]>(
+    const [inspectionRows] = await pool.query<any[]>(
       'SELECT id FROM data_collection_inspection WHERE data_collection_id = ?',
-      [dcId]
+      [collectionId]
     );
-    if (rows.length) {
-      await pool.query('DELETE FROM data_collection_inspection_points WHERE inspection_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_inspection WHERE data_collection_id = ?', [dcId]);
-    }
-  }
-
-  // =========================================================================
-  //  PRIVÉS - ANNEXE 3 : ENTRETIEN PARTIES PRENANTES
-  // =========================================================================
-
-  private async _createEntretienPP(dcId: string, data: ICreateEntretienPartiePrenante) {
-    const id = newId();
-    await pool.query(
-      `INSERT INTO data_collection_entretien
-         (id, data_collection_id, subprojet, date, lieu, heure_debut, heure_fin,
-          type_partie_prenante, type_partie_detail, interlocuteurs, auditeurs,
-          mode, taille_groupe, enregistre,
-          consentement_participation, consentement_notes, consentement_enregistrement,
-          confidentialite_expliquee, reponses, eval_qualite, eval_franchise,
-          eval_pertinence, eval_climat, synthese_preoccupation_principale,
-          synthese_suggestion_pertinente, synthese_element_surprenant,
-          synthese_recommandation_prioritaire, actions_suivi)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, dcId, data.subprojet, data.date, data.lieu,
-       data.heure_debut ?? null, data.heure_fin ?? null,
-       data.type_partie_prenante, data.type_partie_detail ?? null,
-       stringify(data.interlocuteurs ?? []), data.auditeurs,
-       data.mode ?? 'individuel', data.taille_groupe ?? null, data.enregistre ? 1 : 0,
-       data.consentement_participation ? 1 : 0, data.consentement_notes ? 1 : 0,
-       data.consentement_enregistrement ? 1 : 0, data.confidentialite_expliquee ? 1 : 0,
-       stringify(data.reponses ?? {}), data.eval_qualite ?? 3, data.eval_franchise ?? 3,
-       data.eval_pertinence ?? 3, data.eval_climat ?? 3,
-       data.synthese_preoccupation_principale ?? null,
-       data.synthese_suggestion_pertinente ?? null,
-       data.synthese_element_surprenant ?? null,
-       data.synthese_recommandation_prioritaire ?? null,
-       data.actions_suivi ?? null]
-    );
-  }
-
-  private async _getEntretienPP(dcId: string): Promise<IEntretienPartiePrenante | null> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_entretien WHERE data_collection_id = ?',
-      [dcId]
-    );
-    if (!rows.length) return null;
-
-    const r = rows[0];
-    return {
-      id: r.id,
-      data_collection_id: r.data_collection_id,
-      subprojet: r.subprojet,
-      date: r.date,
-      lieu: r.lieu,
-      heure_debut: r.heure_debut ?? null,
-      heure_fin: r.heure_fin ?? null,
-      type_partie_prenante: r.type_partie_prenante,
-      type_partie_detail: r.type_partie_detail ?? null,
-      interlocuteurs: parseJson(r.interlocuteurs) ?? [],
-      auditeurs: r.auditeurs,
-      mode: r.mode,
-      taille_groupe: r.taille_groupe ?? null,
-      enregistre: r.enregistre === 1,
-      consentement_participation: r.consentement_participation === 1,
-      consentement_notes: r.consentement_notes === 1,
-      consentement_enregistrement: r.consentement_enregistrement === 1,
-      confidentialite_expliquee: r.confidentialite_expliquee === 1,
-      reponses: parseJson(r.reponses) ?? {},
-      eval_qualite: r.eval_qualite,
-      eval_franchise: r.eval_franchise,
-      eval_pertinence: r.eval_pertinence,
-      eval_climat: r.eval_climat,
-      synthese_preoccupation_principale: r.synthese_preoccupation_principale ?? null,
-      synthese_suggestion_pertinente: r.synthese_suggestion_pertinente ?? null,
-      synthese_element_surprenant: r.synthese_element_surprenant ?? null,
-      synthese_recommandation_prioritaire: r.synthese_recommandation_prioritaire ?? null,
-      actions_suivi: r.actions_suivi ?? null,
-    };
-  }
-
-  private async _deleteEntretienPP(dcId: string) {
-    await pool.query('DELETE FROM data_collection_entretien WHERE data_collection_id = ?', [dcId]);
-  }
-
-  // =========================================================================
-  //  PRIVÉS - ANNEXE 4 : ÉVALUATION GENRE
-  // =========================================================================
-
-  private async _createEvaluationGenre(dcId: string, data: ICreateEvaluationGenre) {
-    const id = newId();
-    await pool.query(
-      `INSERT INTO data_collection_genre
-         (id, data_collection_id, subprojet, auditeurs, date,
-          score_global, forces_principales, deficiences_critiques, plan_suivi_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, dcId, data.subprojet, data.auditeurs, data.date,
-       data.score_global ?? 'ameliorer', data.forces_principales ?? null,
-       data.deficiences_critiques ?? null, stringify(data.plan_suivi_json ?? {})]
-    );
-
-    if (data.donnees_quantitatives?.length) {
-      for (const [i, d] of data.donnees_quantitatives.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_genre_donnees
-             (id, genre_id, categorie, femmes, hommes, autres, non_specifie, source_document, fiabilite, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, d.categorie, d.femmes ?? null, d.hommes ?? null,
-           d.autres ?? null, d.non_specifie ?? null, d.source_document ?? null,
-           d.fiabilite ?? 'moyenne', i]
-        );
-      }
-    }
-
-    if (data.impacts_differencies?.length) {
-      for (const [i, imp] of data.impacts_differencies.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_genre_impacts
-             (id, genre_id, type_impact, intitule, effets_femmes, effets_hommes,
-              effets_groupes_vulnerables, gravite, opportunite_autonomisation, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, imp.type_impact, imp.intitule, imp.effets_femmes,
-           imp.effets_hommes, imp.effets_groupes_vulnerables, imp.gravite ?? 'M',
-           imp.opportunite_autonomisation ?? null, i]
-        );
-      }
-    }
-
-    if (data.recommandations?.length) {
-      for (const [i, rec] of data.recommandations.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_genre_recs
-             (id, genre_id, recommandation, priorite, portee, responsable, delai, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, rec.recommandation, rec.priorite, rec.portee,
-           rec.responsable, rec.delai, i]
-        );
-      }
-    }
-  }
-
-  private async _getEvaluationGenre(dcId: string): Promise<IEvaluationGenre | null> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_genre WHERE data_collection_id = ?',
-      [dcId]
-    );
-    if (!rows.length) return null;
-
-    const [donnees, impacts, recs] = await Promise.all([
-      pool.query<any[]>('SELECT * FROM data_collection_genre_donnees WHERE genre_id = ? ORDER BY sort_order', [rows[0].id]),
-      pool.query<any[]>('SELECT * FROM data_collection_genre_impacts WHERE genre_id = ? ORDER BY sort_order', [rows[0].id]),
-      pool.query<any[]>('SELECT * FROM data_collection_genre_recs WHERE genre_id = ? ORDER BY sort_order', [rows[0].id])
-    ]);
-
-    const r = rows[0];
-    return {
-      id: r.id,
-      data_collection_id: r.data_collection_id,
-      subprojet: r.subprojet,
-      auditeurs: r.auditeurs,
-      date: r.date,
-      score_global: r.score_global,
-      forces_principales: r.forces_principales ?? null,
-      deficiences_critiques: r.deficiences_critiques ?? null,
-      donnees_quantitatives: donnees[0].map((d: any) => ({
-        categorie: d.categorie,
-        femmes: d.femmes,
-        hommes: d.hommes,
-        autres: d.autres,
-        non_specifie: d.non_specifie,
-        source_document: d.source_document ?? null,
-        fiabilite: d.fiabilite,
-      })),
-      impacts_differencies: impacts[0].map((i: any) => ({
-        type_impact: i.type_impact,
-        intitule: i.intitule,
-        effets_femmes: i.effets_femmes,
-        effets_hommes: i.effets_hommes,
-        effets_groupes_vulnerables: i.effets_groupes_vulnerables,
-        gravite: i.gravite,
-        opportunite_autonomisation: i.opportunite_autonomisation ?? null,
-        sort_order: i.sort_order,
-      })),
-      recommandations: recs[0].map((r: any) => ({
-        recommandation: r.recommandation,
-        priorite: r.priorite,
-        portee: r.portee,
-        responsable: r.responsable,
-        delai: r.delai,
-        sort_order: r.sort_order,
-      })),
-      plan_suivi_json: parseJson(r.plan_suivi_json) ?? {},
-    };
-  }
-
-  private async _deleteEvaluationGenre(dcId: string) {
-    const [rows] = await pool.query<any[]>(
+    const [genreRows] = await pool.query<any[]>(
       'SELECT id FROM data_collection_genre WHERE data_collection_id = ?',
-      [dcId]
+      [collectionId]
     );
-    if (rows.length) {
-      await pool.query('DELETE FROM data_collection_genre_donnees WHERE genre_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_genre_impacts WHERE genre_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_genre_recs WHERE genre_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_genre WHERE data_collection_id = ?', [dcId]);
-    }
-  }
-
-  // =========================================================================
-  //  PRIVÉS - ANNEXE 5 : MÉCANISME DE PLAINTE (MGP)
-  // =========================================================================
-
-  private async _createEvaluationMGP(dcId: string, data: ICreateEvaluationMGP) {
-    const id = newId();
-    await pool.query(
-      `INSERT INTO data_collection_mgp
-         (id, data_collection_id, subprojet, auditeurs, date,
-          periode_couverte_debut, periode_couverte_fin, conclusion_globale, signature_auditeur)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, dcId, data.subprojet, data.auditeurs, data.date,
-       data.periode_couverte_debut ?? null, data.periode_couverte_fin ?? null,
-       data.conclusion_globale ?? 'non_evalue', data.signature_auditeur ?? null]
-    );
-
-    if (data.base_documentaire?.length) {
-      for (const [i, doc] of data.base_documentaire.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_mgp_base_docs (id, mgp_id, document, disponible, sort_order)
-           VALUES (?, ?, ?, ?, ?)`,
-          [newId(), id, doc.document, doc.disponible ? 1 : 0, i]
-        );
-      }
-    }
-
-    if (data.criteres?.length) {
-      for (const [i, c] of data.criteres.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_mgp_criteres
-             (id, mgp_id, code, critere, point_verification, methode, constat, donnee_quantitative, evaluation, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, c.code, c.critere, c.point_verification,
-           c.methode ?? null, c.constat ?? null, c.donnee_quantitative ?? null,
-           c.evaluation ?? 'S.O.', i]
-        );
-      }
-    }
-
-    if (data.points_forts?.length) {
-      for (const [i, pf] of data.points_forts.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_mgp_points_forts (id, mgp_id, point, sort_order) VALUES (?, ?, ?, ?)`,
-          [newId(), id, pf, i]
-        );
-      }
-    }
-
-    if (data.deficiences?.length) {
-      for (const [i, d] of data.deficiences.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_mgp_deficiences
-             (id, mgp_id, deficience, consequence, gravite, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?)`,
-          [newId(), id, d.deficience, d.consequence, d.gravite, i]
-        );
-      }
-    }
-
-    if (data.recommandations?.length) {
-      for (const [i, r] of data.recommandations.entries()) {
-        await pool.query(
-          `INSERT INTO data_collection_mgp_recs
-             (id, mgp_id, recommandation, priorite, responsable, delai, sort_order)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [newId(), id, r.recommandation, r.priorite, r.responsable, r.delai, i]
-        );
-      }
-    }
-  }
-
-  private async _getEvaluationMGP(dcId: string): Promise<IEvaluationMGP | null> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM data_collection_mgp WHERE data_collection_id = ?',
-      [dcId]
-    );
-    if (!rows.length) return null;
-
-    const [baseDocs, criteres, pointsForts, deficiences, recs] = await Promise.all([
-      pool.query<any[]>('SELECT * FROM data_collection_mgp_base_docs WHERE mgp_id = ? ORDER BY sort_order', [rows[0].id]),
-      pool.query<any[]>('SELECT * FROM data_collection_mgp_criteres WHERE mgp_id = ? ORDER BY sort_order', [rows[0].id]),
-      pool.query<any[]>('SELECT * FROM data_collection_mgp_points_forts WHERE mgp_id = ? ORDER BY sort_order', [rows[0].id]),
-      pool.query<any[]>('SELECT * FROM data_collection_mgp_deficiences WHERE mgp_id = ? ORDER BY sort_order', [rows[0].id]),
-      pool.query<any[]>('SELECT * FROM data_collection_mgp_recs WHERE mgp_id = ? ORDER BY sort_order', [rows[0].id])
-    ]);
-
-    const r = rows[0];
-    return {
-      id: r.id,
-      data_collection_id: r.data_collection_id,
-      subprojet: r.subprojet,
-      auditeurs: r.auditeurs,
-      date: r.date,
-      periode_couverte_debut: r.periode_couverte_debut ?? null,
-      periode_couverte_fin: r.periode_couverte_fin ?? null,
-      base_documentaire: baseDocs[0].map((b: any) => ({
-        document: b.document,
-        disponible: b.disponible === 1,
-        sort_order: b.sort_order,
-      })),
-      criteres: criteres[0].map((c: any) => ({
-        code: c.code,
-        critere: c.critere,
-        point_verification: c.point_verification,
-        methode: c.methode ?? null,
-        constat: c.constat ?? null,
-        donnee_quantitative: c.donnee_quantitative ?? null,
-        evaluation: c.evaluation,
-        sort_order: c.sort_order,
-      })),
-      points_forts: pointsForts[0].map((p: any) => p.point),
-      deficiences: deficiences[0].map((d: any) => ({
-        deficience: d.deficience,
-        consequence: d.consequence,
-        gravite: d.gravite,
-        sort_order: d.sort_order,
-      })),
-      recommandations: recs[0].map((r: any) => ({
-        recommandation: r.recommandation,
-        priorite: r.priorite,
-        responsable: r.responsable,
-        delai: r.delai,
-        sort_order: r.sort_order,
-      })),
-      conclusion_globale: r.conclusion_globale,
-      signature_auditeur: r.signature_auditeur ?? null,
-    };
-  }
-
-  private async _deleteEvaluationMGP(dcId: string) {
-    const [rows] = await pool.query<any[]>(
+    const [mgpRows] = await pool.query<any[]>(
       'SELECT id FROM data_collection_mgp WHERE data_collection_id = ?',
-      [dcId]
+      [collectionId]
     );
-    if (rows.length) {
-      await pool.query('DELETE FROM data_collection_mgp_base_docs WHERE mgp_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_mgp_criteres WHERE mgp_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_mgp_points_forts WHERE mgp_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_mgp_deficiences WHERE mgp_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_mgp_recs WHERE mgp_id = ?', [rows[0].id]);
-      await pool.query('DELETE FROM data_collection_mgp WHERE data_collection_id = ?', [dcId]);
+    
+    // Supprimer les items enfants
+    if (revueRows[0]) {
+      await pool.query('DELETE FROM data_collection_revue_doc_items WHERE revue_doc_id = ?', [revueRows[0].id]);
+      await pool.query('DELETE FROM data_collection_revue_doc WHERE id = ?', [revueRows[0].id]);
+    }
+    
+    if (inspectionRows[0]) {
+      await pool.query('DELETE FROM data_collection_inspection_points WHERE inspection_id = ?', [inspectionRows[0].id]);
+      await pool.query('DELETE FROM data_collection_inspection WHERE id = ?', [inspectionRows[0].id]);
+    }
+    
+    await pool.query('DELETE FROM data_collection_entretien WHERE data_collection_id = ?', [collectionId]);
+    
+    if (genreRows[0]) {
+      await pool.query('DELETE FROM data_collection_genre_donnees WHERE genre_id = ?', [genreRows[0].id]);
+      await pool.query('DELETE FROM data_collection_genre_impacts WHERE genre_id = ?', [genreRows[0].id]);
+      await pool.query('DELETE FROM data_collection_genre_recs WHERE genre_id = ?', [genreRows[0].id]);
+      await pool.query('DELETE FROM data_collection_genre WHERE id = ?', [genreRows[0].id]);
+    }
+    
+    if (mgpRows[0]) {
+      await pool.query('DELETE FROM data_collection_mgp_base_docs WHERE mgp_id = ?', [mgpRows[0].id]);
+      await pool.query('DELETE FROM data_collection_mgp_criteres WHERE mgp_id = ?', [mgpRows[0].id]);
+      await pool.query('DELETE FROM data_collection_mgp_points_forts WHERE mgp_id = ?', [mgpRows[0].id]);
+      await pool.query('DELETE FROM data_collection_mgp_deficiences WHERE mgp_id = ?', [mgpRows[0].id]);
+      await pool.query('DELETE FROM data_collection_mgp_recs WHERE mgp_id = ?', [mgpRows[0].id]);
+      await pool.query('DELETE FROM data_collection_mgp WHERE id = ?', [mgpRows[0].id]);
     }
   }
 }
+
+export const dataCollectionService = new DataCollectionService();

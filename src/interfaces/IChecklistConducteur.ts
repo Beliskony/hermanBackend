@@ -14,7 +14,7 @@ export interface IChecklistConducteur {
   duree_entretien: string | null;   // VARCHAR(50) NULL
   lieu: string;                     // VARCHAR(255) NOT NULL
   commentaires_libres: string | null;
-  signature_auditeur: string | null;
+  signature_auditeur: string | null;status?: 'draft' | 'submitted';
   created_at: Date;
   updated_at: Date;
 }

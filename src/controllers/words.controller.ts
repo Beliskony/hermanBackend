@@ -29,7 +29,6 @@ const extractMeta = (data: any): { projectName: string; projectLocation: string;
 
 export class WordExportController {
 
-
   /**
    * GET /words/export/:id
    * Détecte le type de formulaire et génère le Word correspondant
@@ -99,10 +98,44 @@ export class WordExportController {
           filename = generateFilename('checklist-conducteur', data.subprojet || 'conducteur');
           break;
 
-        case 'apes':
-          buffer = await exportAPESWord(data, projectName, projectLocation, auditors);
+        case 'apes': {
+          // Pour APES, il faut extraire les questions du formulaire
+          const questions = extractQuestionsFromAPESData(data);
+          buffer = await exportAPESWord(
+            {
+              project_name: data.project_name || projectName,
+              date: data.date ? new Date(data.date).toISOString().split('T')[0] : new Date().toISOString(),
+              auditors: data.auditors || auditors,
+              location: data.location || projectLocation,
+              period: data.period || '',
+              document_review: data.document_review ? {
+                documents_presents: data.document_review.documents_presents,
+              } : undefined,
+              field_inspection: data.field_inspection ? {
+                water_management: data.field_inspection.water_management,
+                waste_management: data.field_inspection.waste_management,
+                emissions: data.field_inspection.emissions,
+                health_safety: data.field_inspection.health_safety,
+                community: data.field_inspection.community,
+              } : undefined,
+              stakeholder_interview: data.stakeholder_interview ? {
+                responses: data.stakeholder_interview.responses,
+              } : undefined,
+              gender_assessment: data.gender_assessment ? {
+                quantitative_data: data.gender_assessment.quantitative_data,
+              } : undefined,
+              complaint_mechanism: data.complaint_mechanism ? {
+                documentary_basis: data.complaint_mechanism.documentary_basis,
+              } : undefined,
+            },
+            projectName,
+            projectLocation,
+            auditors,
+            questions
+          );
           filename = generateFilename('apes', projectName);
           break;
+        }
 
         case 'data-collection':
           buffer = await exportDataCollectionWord(data, projectName, projectLocation, auditors);
@@ -122,6 +155,45 @@ export class WordExportController {
       });
     }
   }
+}
+
+// =============================================================================
+//  FONCTION D'EXTRACTION DES QUESTIONS POUR APES
+// =============================================================================
+
+function extractQuestionsFromAPESData(data: any): Array<{ section_key: string; question_id: string; question_text: string; sort_order: number }> {
+  const questions: Array<{ section_key: string; question_id: string; question_text: string; sort_order: number }> = [];
+
+  // Si les questions sont déjà dans data.questions
+  if (data.questions && Array.isArray(data.questions)) {
+    return data.questions.map((q: any) => ({
+      section_key: q.section_key,
+      question_id: q.question_id,
+      question_text: q.question_text,
+      sort_order: q.sort_order,
+    }));
+  }
+
+  // Si les questions sont dans data.questions_by_section
+  if (data.questions_by_section) {
+    for (const section of Object.values(data.questions_by_section)) {
+      if (Array.isArray(section)) {
+        for (const q of section) {
+          questions.push({
+            section_key: q.section_key,
+            question_id: q.question_id,
+            question_text: q.question_text,
+            sort_order: q.sort_order,
+          });
+        }
+      }
+    }
+    return questions;
+  }
+
+  // Si aucune question n'est trouvée, retourner un tableau vide
+  console.warn('[APES Export] Aucune question trouvée dans les données');
+  return [];
 }
 
 export default WordExportController;

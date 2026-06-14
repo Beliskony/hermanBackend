@@ -1,7 +1,11 @@
 import { Request, Response } from 'express';
 import { FormService } from '../services/form.service';
+import { QuestionService } from '../services/form.service';
+import { FormType } from '../interfaces/IQuestionTemplate';
+import { pool } from '../config/databaseConnect';
 
 const formService = new FormService();
+const questionService = new QuestionService();
 
 // =============================================================================
 // HELPERS
@@ -56,17 +60,36 @@ export class FormController {
   // QUESTIONS (charge les questions selon le type de formulaire)
   // ===========================================================================
 
-  async getFormQuestions(req: Request, res: Response) {
-    try {
-      const { projectId, formType } = req.params;
-      if (!isValidId(projectId)) return res.status(400).json({ success: false, message: 'ID invalide' });
-      
-      const questions = await formService.questions.getFormQuestions(projectId, formType as any);
-      res.json({ success: true, data: questions });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
-    }
+async getFormQuestions(req: Request, res: Response) {
+  try {
+    const { projectId, formType } = req.params;
+    const { sectionKey } = req.query;
+    const data = await questionService.getFormQuestions(projectId as string, formType as FormType, sectionKey as string | undefined);
+    res.json({ data });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
   }
+}
+
+async getFormQuestionsBySection(req: Request, res: Response) {
+  try {
+    const { projectId, formType, sectionKey } = req.params;
+    const data = await questionService.getProjectQuestionsBySection(projectId as string, formType as FormType, sectionKey as string);
+    res.json({ data });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+}
+
+async getQuestionById(req: Request, res: Response) {
+  try {
+    const data = await questionService.getProjectQuestionById(req.params.id as string);
+    if (!data) return res.status(404).json({ message: 'Question introuvable' });
+    res.json({ data });
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+}
 
   // ===========================================================================
   // APES FORM
@@ -147,17 +170,6 @@ export class FormController {
     }
   }
 
-  async updateGuideEntretien(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      if (!isValidId(id)) return res.status(400).json({ success: false, message: 'ID invalide' });
-      
-      const result = await formService.guideEntretien.update(id, req.body);
-      res.json({ success: true, type: 'guide_entretien', data: result });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  }
 
   async submitGuideEntretien(req: Request, res: Response) {
     try {
@@ -210,17 +222,6 @@ async updateDataCollection(req: Request, res: Response) {
   }
 }
 
-async submitDataCollection(req: Request, res: Response) {
-  try {
-    const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ success: false, message: 'ID invalide' });
-    
-    const result = await formService.dataCollection.submit(id);
-    res.json({ success: true, type: 'data_collection', message: 'Formulaire Data Collection soumis avec succès', data: result });
-  } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
-  }
-}
 
   // ===========================================================================
   // CHECKLIST AUDIT
@@ -246,18 +247,6 @@ async submitDataCollection(req: Request, res: Response) {
       res.json({ success: true, type: 'checklist_audit', data: audit });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
-    }
-  }
-
-  async updateChecklistAudit(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      if (!isValidId(id)) return res.status(400).json({ success: false, message: 'ID invalide' });
-      
-      const result = await formService.checklistAudit.update(id, req.body);
-      res.json({ success: true, type: 'checklist_audit', data: result });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
     }
   }
 
@@ -299,17 +288,6 @@ async submitDataCollection(req: Request, res: Response) {
     }
   }
 
-  async updateChecklistConducteur(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      if (!isValidId(id)) return res.status(400).json({ success: false, message: 'ID invalide' });
-      
-      const result = await formService.checklistConducteur.update(id, req.body);
-      res.json({ success: true, type: 'checklist_conducteur', data: result });
-    } catch (error: any) {
-      res.status(400).json({ success: false, message: error.message });
-    }
-  }
 
   async submitChecklistConducteur(req: Request, res: Response) {
     try {
@@ -327,32 +305,38 @@ async submitDataCollection(req: Request, res: Response) {
   // ===========================================================================
 
   async getForm(req: Request, res: Response) {
-    try {
-      const { id } = req.params;
-      if (!isValidId(id)) return res.status(400).json({ success: false, message: 'ID invalide' });
+  try {
+    const { id } = req.params;
+    const type = req.query.type as string | undefined;
 
-      // Essayer chaque type
-      const guide = await formService.guideEntretien.getById(id);
-      if (guide) return res.json({ success: true, type: 'guide_entretien', data: guide });
+    if (!isValidId(id)) return res.status(400).json({ success: false, message: 'ID invalide' });
 
-      const audit = await formService.checklistAudit.getById(id);
-      if (audit) return res.json({ success: true, type: 'checklist_audit', data: audit });
+    const resolvers: Record<string, () => Promise<any>> = {
+      guide_entretien:      () => formService.guideEntretien.getById(id),
+      checklist_audit:      () => formService.checklistAudit.getById(id),
+      checklist_conducteur: () => formService.checklistConducteur.getById(id),
+      apes:                 () => formService.apes.getById(id),
+      data_collection:      () => formService.dataCollection.getById(id),
+    };
 
-      const conducteur = await formService.checklistConducteur.getById(id);
-      if (conducteur) return res.json({ success: true, type: 'checklist_conducteur', data: conducteur });
-
-      const apes = await formService.apes.getById(id);
-      if (apes) return res.json({ success: true, type: 'apes', data: apes });
-
-      // Data Collection ← AJOUTER
-      const dataCollection = await formService.dataCollection.getById(id);
-      if (dataCollection) return res.json({ success: true, type: 'data_collection', data: dataCollection });
-
-      res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+    // Si le type est fourni, requête directe
+    if (type && resolvers[type]) {
+      const data = await resolvers[type]();
+      if (!data) return res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
+      return res.json({ success: true, type, data });
     }
+
+    // Fallback : essai séquentiel
+    for (const [formType, resolve] of Object.entries(resolvers)) {
+      const data = await resolve();
+      if (data) return res.json({ success: true, type: formType, data });
+    }
+
+    res.status(404).json({ success: false, message: 'Formulaire non trouvé' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
+}
 
   async submitForm(req: Request, res: Response) {
     try {
@@ -371,40 +355,110 @@ async submitDataCollection(req: Request, res: Response) {
   }
 
   async getAllForms(req: Request, res: Response) {
-    try {
-      const { page, limit } = paginate(req);
-      const projectId = req.query.projectId as string;
+  try {
+    const { page, limit } = paginate(req);
+    const projectId = req.query.projectId as string;
 
-      const [apes, guides, audits, conducteurs, dataCollections] = await Promise.all([
-        formService.apes.getAll(projectId, undefined, page, 100),
-        formService.guideEntretien.getAll(projectId, undefined, page, 100),
-        formService.checklistAudit.getAll(projectId, page, 100),
-        formService.checklistConducteur.getAll(projectId, page, 100),
-        formService.dataCollection.getAll(projectId, undefined, page, 100)
-      ]);
-
-      const allForms = [
-        ...(apes.items || []).map((f: any) => ({ ...f, formType: 'apes' })),
-        ...(guides.items || []).map((f: any) => ({ ...f, formType: 'guide_entretien' })),
-        ...(audits.items || []).map((f: any) => ({ ...f, formType: 'checklist_audit' })),
-        ...(conducteurs.items || []).map((f: any) => ({ ...f, formType: 'checklist_conducteur' })),
-        ...(dataCollections.items || []).map((f: any) => ({ ...f, formType: 'data_collection' }))
-      ];
-
-      allForms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-      const start = (page - 1) * limit;
-      const paginated = allForms.slice(start, start + limit);
-
-      res.json({
-        success: true,
-        data: paginated,
-        pagination: { page, limit, total: allForms.length, totalPages: Math.ceil(allForms.length / limit) }
-      });
-    } catch (error: any) {
-      res.status(500).json({ success: false, message: error.message });
+    if (!projectId) {
+      return res.status(400).json({ success: false, message: 'projectId requis' });
     }
+
+    // Utiliser les procédures existantes
+    const [apesRows] = await pool.query<any[]>(
+      'CALL sp_list_apes(?, ?, ?, ?)',
+      [projectId, null, limit, (page - 1) * limit]
+    );
+
+    const [guideRows] = await pool.query<any[]>(
+      `SELECT id, status, created_at, submitted_at, subprojet, 'guide_entretien' AS formType 
+       FROM guide_entretien WHERE project_id = ?`,
+      [projectId]
+    );
+
+    const [auditRows] = await pool.query<any[]>(
+      `SELECT id, status, created_at, submitted_at, subprojet, 'checklist_audit' AS formType 
+       FROM checklist_audit WHERE project_id = ?`,
+      [projectId]
+    );
+
+    const [conducteurRows] = await pool.query<any[]>(
+      `SELECT id, status, created_at, submitted_at, subprojet, 'checklist_conducteur' AS formType 
+       FROM checklist_conducteur WHERE project_id = ?`,
+      [projectId]
+    );
+
+    const [dataCollectionRows] = await pool.query<any[]>(
+      `SELECT dc.id, dc.status, dc.created_at, dc.submitted_at, drd.subprojet, 'data_collection' AS formType
+       FROM data_collection dc
+       LEFT JOIN data_collection_revue_doc drd ON drd.data_collection_id = dc.id
+       WHERE dc.project_id = ?`,
+      [projectId]
+    );
+
+    // apesRows[0] contient les résultats, apesRows[1] contient le total
+    const apesItems = apesRows[0] || [];
+    
+    const allForms = [
+      ...apesItems.map((r: any) => ({
+        id: r.form_id,
+        name: r.project_name || 'Formulaire APES',
+        type: 'apes',
+        status: r.status,
+        created_at: r.created_at,
+        submitted_at: r.submitted_at
+      })),
+      ...guideRows.map((r: any) => ({
+        id: r.id,
+        name: r.subprojet || 'Guide entretien',
+        type: 'guide_entretien',
+        status: r.status,
+        created_at: r.created_at,
+        submitted_at: r.submitted_at
+      })),
+      ...auditRows.map((r: any) => ({
+        id: r.id,
+        name: r.subprojet || 'Checklist audit',
+        type: 'checklist_audit',
+        status: r.status,
+        created_at: r.created_at,
+        submitted_at: r.submitted_at
+      })),
+      ...conducteurRows.map((r: any) => ({
+        id: r.id,
+        name: r.subprojet || 'Checklist conducteur',
+        type: 'checklist_conducteur',
+        status: r.status,
+        created_at: r.created_at,
+        submitted_at: r.submitted_at
+      })),
+      ...dataCollectionRows.map((r: any) => ({
+        id: r.id,
+        name: r.subprojet || 'Data collection',
+        type: 'data_collection',
+        status: r.status,
+        created_at: r.created_at,
+        submitted_at: r.submitted_at
+      }))
+    ];
+
+    allForms.sort((a, b) => 
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    const total = allForms.length;
+    const start = (page - 1) * limit;
+    const paginated = allForms.slice(start, start + limit);
+
+    res.json({
+      success: true,
+      data: paginated,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    });
+  } catch (error: any) {
+    console.error('Erreur getAllForms:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
+}
 }
 
 export const formController = new FormController();

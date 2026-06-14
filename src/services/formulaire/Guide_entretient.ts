@@ -1,11 +1,10 @@
-// guide-entretien.service.ts - Version COMPLÈTE
+// guide-entretien.service.ts - Version avec procédures stockées (CORRIGÉE)
 
 import { pool } from '../../config/databaseConnect';
 import { newId } from '../../utils/id';
 import { BaseRepository, Paginated } from './Base_form';
 import type { IGuideEntretien, ICreateGuideEntretien, GuideType } from '../../interfaces/IGuideEntretien';
 
-// Interface pour les questions
 export interface IGuideEntretienQuestion {
   id: string;
   guide_entretien_id: string;
@@ -13,11 +12,11 @@ export interface IGuideEntretienQuestion {
   question_id: string;
   question: string;
   reponse: string | null;
-  nuisance_poussiere: boolean | null;
-  nuisance_bruit: boolean | null;
-  nuisance_circulation: boolean | null;
-  nuisance_odeurs: boolean | null;
-  nuisance_dechets: boolean | null;
+  nuisance_poussiere: boolean;
+  nuisance_bruit: boolean;
+  nuisance_circulation: boolean;
+  nuisance_odeurs: boolean;
+  nuisance_dechets: boolean;
   sort_order: number;
 }
 
@@ -27,103 +26,159 @@ export interface IGuideEntretienComplet extends IGuideEntretien {
 
 export class GuideEntretienService extends BaseRepository {
   
+  /**
+   * Créer un nouveau guide d'entretien
+   */
   async create(data: ICreateGuideEntretien & { questions?: any[] }): Promise<IGuideEntretienComplet> {
     const id = newId();
-    const connection = await pool.getConnection();
+    const questionsJson = data.questions ? JSON.stringify(data.questions) : null;
     
-    try {
-      await connection.beginTransaction();
-
-      // 1. Insérer l'en-tête
-      await connection.query(
-        `
-        INSERT INTO guide_entretien
-          (id, project_id, guide_type, subprojet,
-           gi_nom, gi_fonction, gi_contact, gi_date, gi_lieu,
-           gi_type_entretien, gi_employeur, gi_type_contrat, notes_auditeur)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-        `,
-        [
-          id,
-          data.project_id,
-          data.guide_type,
-          data.subprojet,
-          data.gi_nom,
-          data.gi_fonction,
-          data.gi_contact ?? null,
-          data.gi_date,
-          data.gi_lieu,
-          data.gi_type_entretien ?? null,
-          data.gi_employeur ?? null,
-          data.gi_type_contrat ?? null,
-          data.notes_auditeur ?? null,
-        ]
-      );
-
-      // 2. Insérer les questions
-      if (data.questions && data.questions.length > 0) {
-        for (const q of data.questions) {
-          const questionId = newId();
-          await connection.query(
-            `
-            INSERT INTO guide_entretien_questions 
-            (id, guide_entretien_id, theme_key, question_id, question, 
-             reponse, nuisance_poussiere, nuisance_bruit, 
-             nuisance_circulation, nuisance_odeurs, nuisance_dechets, sort_order)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `,
-            [
-              questionId,
-              id,
-              q.theme_key,
-              q.question_id,
-              q.question,
-              q.reponse ?? null,
-              q.nuisance_poussiere ?? null,
-              q.nuisance_bruit ?? null,
-              q.nuisance_circulation ?? null,
-              q.nuisance_odeurs ?? null,
-              q.nuisance_dechets ?? null,
-              q.sort_order ?? 0
-            ]
-          );
-        }
-      }
-
-      await connection.commit();
-      return (await this.getById(id))!;
-      
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
+    const [results] = await pool.query<any[]>(
+      'CALL sp_create_guide_entretien(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        id,
+        data.project_id,
+        data.guide_type,
+        data.subprojet,
+        data.gi_nom,
+        data.gi_fonction,
+        data.gi_contact ?? null,
+        data.gi_date,
+        data.gi_lieu,
+        data.gi_type_entretien ?? null,
+        data.gi_employeur ?? null,
+        data.gi_type_contrat ?? null,
+        data.notes_auditeur ?? null,
+        questionsJson
+      ]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    
+    // Soumettre un guide (changement de status draft → submitted)
+    await pool.query<any[]>( 'CALL sp_submit_guide_entretien(?)', [id] );
+    
+    if (!result) {
+      throw new Error(`Erreur lors de la création du guide d'entretien ${id}`);
     }
+    return result;
+    
   }
 
+  /**
+   * Récupérer un guide complet par son ID
+   */
   async getById(id: string): Promise<IGuideEntretienComplet | null> {
-    // 1. Récupérer l'en-tête
-    const [header] = await pool.query<any[]>(
-      'SELECT * FROM guide_entretien WHERE id = ?',
-      [id]
-    );
-    if (!header[0]) return null;
-    
-    // 2. Récupérer les questions
-    const [questions] = await pool.query<any[]>(
-      'SELECT * FROM guide_entretien_questions WHERE guide_entretien_id = ? ORDER BY theme_key, sort_order',
+    const [results] = await pool.query<any[]>(
+      'CALL sp_get_guide_entretien_complet(?)',
       [id]
     );
     
-    // 3. Retourner l'objet complet
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
+    }
+    
+    return this._formatProcedureResult(results);
+  }
+
+  /**
+   * Mettre à jour les réponses d'un guide
+   */
+  async updateReponses(guideId: string, questions: any[]): Promise<IGuideEntretienComplet> {
+    const questionsJson = JSON.stringify(questions);
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_update_guide_entretien_reponses(?, ?)',
+      [guideId, questionsJson]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la mise à jour des réponses du guide ${guideId}`);
+    }
+    return result;
+  }
+
+  /**
+   * Soumettre un guide (changement de status draft → submitted)
+   */
+  async submit(id: string): Promise<IGuideEntretienComplet> {
+    const [results] = await pool.query<any[]>(
+      'CALL sp_submit_guide_entretien(?)',
+      [id]
+    );
+    
+    const result = this._formatProcedureResult(results);
+    if (!result) {
+      throw new Error(`Erreur lors de la soumission du guide ${id}`);
+    }
+    return result;
+  }
+
+  /**
+   * Lister tous les guides d'un projet
+   */
+  async getAll(
+    projectId?: string,
+    guideType?: GuideType,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<Paginated<IGuideEntretien>> {
+    const offset = (page - 1) * limit;
+    
+    const [results] = await pool.query<any[]>(
+      'CALL sp_list_guide_entretien(?, ?, ?, ?)',
+      [projectId ?? null, guideType ?? null, limit, offset]
+    );
+    
+    const items = results[0] || [];
+    const total = results[1]?.[0]?.total || 0;
+    
     return {
-      ...this._mapGuide(header[0]),
-      questions: questions.map(q => ({
-        id: q.id,
-        guide_entretien_id: q.guide_entretien_id,
+      items: items.map((r: any) => this._mapGuide(r)),
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  // ===========================================================================
+  //  MÉTHODES PRIVÉES
+  // ===========================================================================
+
+  /**
+   * Formate le résultat d'une procédure (2 jeux de résultats)
+   */
+  private _formatProcedureResult(results: any[]): IGuideEntretienComplet | null {
+    if (!results || !results[0] || results[0].length === 0) {
+      return null;
+    }
+    
+    const header = results[0][0];
+    const questions = results[1] || [];
+    
+    return {
+      id: header.id,
+      project_id: header.project_id,
+      guide_type: header.guide_type as GuideType,
+      subprojet: header.subprojet,
+      gi_nom: header.gi_nom,
+      gi_fonction: header.gi_fonction,
+      gi_contact: header.gi_contact ?? null,
+      gi_date: new Date(header.gi_date),
+      gi_lieu: header.gi_lieu,
+      gi_type_entretien: header.gi_type_entretien ?? null,
+      gi_employeur: header.gi_employeur ?? null,
+      gi_type_contrat: header.gi_type_contrat ?? null,
+      notes_auditeur: header.notes_auditeur ?? null,
+      created_at: new Date(header.created_at),
+      updated_at: new Date(header.updated_at),
+      questions: questions.map((q: any) => ({
+        id: q.question_id,
+        guide_entretien_id: header.id,
         theme_key: q.theme_key,
         question_id: q.question_id,
-        question: q.question,
+        question: q.question_text,
         reponse: q.reponse ?? null,
         nuisance_poussiere: q.nuisance_poussiere === 1,
         nuisance_bruit: q.nuisance_bruit === 1,
@@ -135,105 +190,9 @@ export class GuideEntretienService extends BaseRepository {
     };
   }
 
-  async getQuestions(guideId: string): Promise<IGuideEntretienQuestion[]> {
-    const [rows] = await pool.query<any[]>(
-      'SELECT * FROM guide_entretien_questions WHERE guide_entretien_id = ? ORDER BY theme_key, sort_order',
-      [guideId]
-    );
-    return rows.map(q => ({
-      id: q.id,
-      guide_entretien_id: q.guide_entretien_id,
-      theme_key: q.theme_key,
-      question_id: q.question_id,
-      question: q.question,
-      reponse: q.reponse ?? null,
-      nuisance_poussiere: q.nuisance_poussiere === 1,
-      nuisance_bruit: q.nuisance_bruit === 1,
-      nuisance_circulation: q.nuisance_circulation === 1,
-      nuisance_odeurs: q.nuisance_odeurs === 1,
-      nuisance_dechets: q.nuisance_dechets === 1,
-      sort_order: q.sort_order,
-    }));
-  }
-
-  // Garde tes méthodes existantes
-  async getAll(
-    projectId?: string,
-    guideType?: GuideType,
-    page = 1,
-    limit = 10
-  ): Promise<Paginated<IGuideEntretien>> {
-    const conditions: string[] = [];
-    const params: unknown[] = [];
-
-    if (projectId) {
-      conditions.push('project_id = ?');
-      params.push(projectId);
-    }
-    if (guideType) {
-      conditions.push('guide_type = ?');
-      params.push(guideType);
-    }
-
-    const where = conditions.length ? conditions.join(' AND ') : '1=1';
-    const offset = (page - 1) * limit;
-
-    const [rows] = await pool.query<any[]>(
-      `SELECT * FROM guide_entretien WHERE ${where} ORDER BY gi_date DESC LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
-    const total = await this.countRows('guide_entretien', where, params);
-
-    return {
-      items: rows.map(r => this._mapGuide(r)),
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    };
-  }
-
-  async update(
-    id: string,
-    data: Partial<ICreateGuideEntretien>
-  ): Promise<IGuideEntretien | null> {
-    const existing = await this.getById(id);
-    if (!existing) throw new Error('Guide introuvable');
-
-    const fields: string[] = [];
-    const values: unknown[] = [];
-
-    const updatableFields = [
-      'guide_type',
-      'subprojet',
-      'gi_nom',
-      'gi_fonction',
-      'gi_contact',
-      'gi_date',
-      'gi_lieu',
-      'gi_type_entretien',
-      'gi_employeur',
-      'gi_type_contrat',
-      'notes_auditeur',
-    ] as const;
-
-    for (const field of updatableFields) {
-      if (data[field] !== undefined) {
-        fields.push(`${field} = ?`);
-        values.push(data[field] ?? null);
-      }
-    }
-
-    if (fields.length) {
-      await pool.query(
-        `UPDATE guide_entretien SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-        [...values, id]
-      );
-    }
-
-    const updated = await this.getById(id);
-    return updated ? this._mapGuide(updated) : null;
-  }
-
+  /**
+   * Mappe une ligne de guide_entretien vers l'interface (sans les questions)
+   */
   private _mapGuide(r: any): IGuideEntretien {
     return {
       id: r.id,
@@ -254,3 +213,6 @@ export class GuideEntretienService extends BaseRepository {
     };
   }
 }
+
+// Export d'une instance unique
+export const guideEntretienService = new GuideEntretienService();

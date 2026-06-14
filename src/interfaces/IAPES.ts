@@ -1,23 +1,33 @@
-// src/interfaces/IAPESForm.ts
 import { ICreateDocumentReview, IDocumentReview } from './IDocumentReview';
 import { ICreateFieldInspection, IFieldInspection } from './IFieldInspection';
 import { ICreateStakeholderInterview, IStakeholderInterview } from './IStakeholderInterview';
 import { ICreateGenderAssessment, IGenderAssessment } from './IGenderAssessment';
 import { IComplaintMechanism, ICreateComplaintMechanism } from './IComplaintMechanism';
 
+// Interface pour une question avec sa réponse
+export interface IAPESQuestion {
+  section_key: string;
+  question_id: string;
+  question_text: string;
+  question_type: string;
+  sort_order: number;
+  answer: string | boolean | null;
+  observations?: string | null;
+}
+
 export interface IAPESForm {
-  id: string;                       // CHAR(16) - L'identifiant du formulaire APES
+  id: string;
   project_id: string;
-  project_name: string | null;     // ← Ajouté
-  date: Date | null;   // ← Ajouté
-  auditors: string | null;             // ← Ajouté
-  location: string | null;             // ← Ajouté
-  period: string | null;                 // ← Ajouté
-  document_review_id: string | null;    // FK → document_review.id
-  field_inspection_id: string | null;   // FK → field_inspection.id
-  stakeholder_interview_id: string | null; // FK → stakeholder_interview.id
-  gender_assessment_id: string | null;    // FK → gender_assessment.id
-  complaint_mechanism_id: string | null;  // FK → complaint_mechanism.id
+  project_name: string | null;
+  date: Date | null;
+  auditors: string | null;
+  location: string | null;
+  period: string | null;
+  document_review_id: string | null;
+  field_inspection_id: string | null;
+  stakeholder_interview_id: string | null;
+  gender_assessment_id: string | null;
+  complaint_mechanism_id: string | null;
   status: 'draft' | 'submitted';
   created_at: Date;
   updated_at: Date;
@@ -26,14 +36,13 @@ export interface IAPESForm {
 
 export interface ICreateAPESForm {
   project_id: string;
-   project_info?: {
+  project_info?: {
     project_name: string;
     date: string;
     auditors: string;
     location: string;
     period: string;
   };
-  
   document_review?: ICreateDocumentReview;
   field_inspection?: ICreateFieldInspection;
   stakeholder_interview?: ICreateStakeholderInterview;
@@ -53,4 +62,7 @@ export interface IAPESFormWithDetails extends IAPESForm {
     name: string;
     location: string | null;
   };
+  // Propriétés ajoutées pour l'export Word et la récupération complète
+  questions?: IAPESQuestion[];
+  questions_by_section?: Record<string, IAPESQuestion[]>;
 }
