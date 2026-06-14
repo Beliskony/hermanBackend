@@ -52,7 +52,7 @@ function synthTable(
 export function buildDataCollectionRevueDocSection(rd: any): (Paragraph | Table)[] {
   if (!rd) return [paragraph('Aucune donnée de revue documentaire disponible.')];
 
-  const documents       = rd.documents_items ?? [];
+  const documents       = rd.documents ?? [];
   const total           = documents.length;
   const presentCount    = documents.filter((d: any) => d.disponible === 'O').length;
   const conformCount    = documents.filter((d: any) => d.conformite === 'O').length;
@@ -752,7 +752,7 @@ export function buildDataCollectionQuickSynthesis(data: any): (Paragraph | Table
 
   if (data.revue_documentaire) {
     const rd    = data.revue_documentaire;
-    const docs  = rd.documents_items ?? [];
+    const docs  = rd.documents ?? [];
     const total = docs.length;
     const present = docs.filter((d: any) => d.disponible === 'O').length;
     const conform = docs.filter((d: any) => d.conformite === 'O').length;
